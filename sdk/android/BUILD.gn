@@ -56,7 +56,7 @@ if (is_android) {
       ":video_api_java",
       ":video_java",
       "../../modules/audio_device:audio_device_java",
-      "//third_party/webrtc/rtc_base:base_java",
+      "../../rtc_base:base_java",
     ]
   }
 
@@ -410,7 +410,7 @@ if (is_android) {
       ":base_java",
       ":video_api_java",
       ":video_java",
-      "//third_party/webrtc/rtc_base:base_java",
+      "//rtc_base:base_java",
       "//third_party/androidx:androidx_annotation_annotation_java",
     ]
   }
