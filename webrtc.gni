@@ -12,9 +12,8 @@ import("//build/config/ozone.gni")
 import("//build/config/sanitizers/sanitizers.gni")
 import("//build/config/sysroot.gni")
 import("//build_overrides/build.gni")
-import("//build_overrides/ssl/ssl.gni")
 
-if (!build_with_chromium && !build_with_owt && is_component_build) {
+if (!build_with_chromium && is_component_build) {
   print("The Gn argument `is_component_build` is currently " +
         "ignored for WebRTC builds.")
   print("Component builds are supported by Chromium and the argument " +
@@ -111,7 +110,7 @@ declare_args() {
 
   # Used to specify an external OpenSSL include path when not compiling the
   # library that comes with WebRTC (i.e. rtc_build_ssl == 0).
-  rtc_ssl_root = owt_openssl_header_root
+  rtc_ssl_root = ""
 
   # Enable when an external authentication mechanism is used for performing
   # packet authentication for RTP packets instead of libsrtp.
@@ -254,7 +253,7 @@ declare_args() {
   rtc_build_libvpx = !build_with_mozilla
   rtc_libvpx_build_vp9 = !build_with_mozilla
   rtc_build_opus = !build_with_mozilla
-  rtc_build_ssl = !owt_use_openssl
+  rtc_build_ssl = !build_with_mozilla
 
   # Enable libevent task queues on platforms that support it.
   if (is_win || is_mac || is_ios || is_nacl || is_fuchsia ||
