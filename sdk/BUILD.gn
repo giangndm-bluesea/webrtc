@@ -1743,6 +1743,7 @@ if (is_ios || is_mac) {
     }
 
     rtc_library("videotoolbox_objc") {
+      defines = []
       visibility = [ "*" ]
       allow_poison = [ "audio_codecs" ]  # TODO(bugs.webrtc.org/8396): Remove.
       sources = [
