@@ -49,11 +49,8 @@
 #include "sdk/objc/native/api/video_encoder_factory.h"
 #include "sdk/objc/native/src/objc_video_decoder_factory.h"
 #include "sdk/objc/native/src/objc_video_encoder_factory.h"
-<<<<<<< HEAD
-=======
 
 #if defined(WEBRTC_IOS)
->>>>>>> m108_h265_origin
 #import "sdk/objc/native/api/audio_device_module.h"
 #endif
 
@@ -112,9 +109,8 @@
                        nativeAudioDecoderFactory:webrtc::CreateBuiltinAudioDecoderFactory()
                        nativeVideoEncoderFactory:std::move(native_encoder_factory)
                        nativeVideoDecoderFactory:std::move(native_decoder_factory)
-<<<<<<< HEAD
                                audioDeviceModule:nullptr
-                           audioProcessingModule:nullptr
+                           audioProcessingModule:audio_device_module.get()
                            bypassVoiceProcessing:NO];
 #endif
 }
@@ -145,13 +141,6 @@
 #endif
 }
 
-=======
-                               audioDeviceModule:audio_device_module.get()
-                           audioProcessingModule:nullptr];
-#endif
-}
-
->>>>>>> m108_h265_origin
 - (instancetype)initNative {
   if (self = [super init]) {
     _networkThread = rtc::Thread::CreateWithSocketServer();
