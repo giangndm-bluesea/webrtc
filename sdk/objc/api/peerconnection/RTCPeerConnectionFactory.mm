@@ -74,8 +74,10 @@
                                             RTCVideoEncoderFactoryH264) alloc] init])
               nativeVideoDecoderFactory:webrtc::ObjCToNativeVideoDecoderFactory([[RTC_OBJC_TYPE(
                                             RTCVideoDecoderFactoryH264) alloc] init])
-                      audioDeviceModule:[self audioDeviceModule].get()
-                  audioProcessingModule:nullptr];
+                      audioDeviceModule:nullptr
+                  audioProcessingModule:nullptr
+                  bypassVoiceProcessing:NO
+                ];
 }
 
 - (instancetype)
@@ -102,8 +104,6 @@
   rtc::scoped_refptr<webrtc::AudioDeviceModule> audio_device_module;
   if (audioDevice) {
     audio_device_module = webrtc::CreateAudioDeviceModule(audioDevice);
-  } else {
-    audio_device_module = [self audioDeviceModule];
   }
   return [self initWithNativeAudioEncoderFactory:webrtc::CreateBuiltinAudioEncoderFactory()
                        nativeAudioDecoderFactory:webrtc::CreateBuiltinAudioDecoderFactory()
