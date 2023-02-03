@@ -34,7 +34,7 @@ ObjCDesktopCapturer::ObjCDesktopCapturer(DesktopType type,
   options_ = webrtc::DesktopCaptureOptions::CreateDefault();
   options_.set_detect_updated_region(true);
   options_.set_allow_iosurface(true);
-  thread_->Invoke<void>(RTC_FROM_HERE, [this, type] {
+  thread_->BlockingCall<void>([this, type] {
     if (type == kScreen) {
       capturer_ = std::make_unique<DesktopAndCursorComposer>(webrtc::DesktopCapturer::CreateScreenCapturer(options_), options_);
     } else { 
@@ -44,7 +44,7 @@ ObjCDesktopCapturer::ObjCDesktopCapturer(DesktopType type,
 }
 
 ObjCDesktopCapturer::~ObjCDesktopCapturer() {
-  thread_->Invoke<void>(RTC_FROM_HERE, [this] {
+  thread_->BlockingCall<void>([this] {
     capturer_.reset();
   });
 }
@@ -75,7 +75,7 @@ ObjCDesktopCapturer::CaptureState ObjCDesktopCapturer::Start(uint32_t fps) {
     }
   }
 
-  thread_->Invoke<void>(RTC_FROM_HERE, [this] {
+  thread_->BlockingCall<void>([this] {
     capturer_->Start(this);
   });
   capture_state_ = CS_RUNNING;
@@ -182,7 +182,7 @@ void ObjCDesktopCapturer::OnMessage(rtc::Message* msg) {
 void ObjCDesktopCapturer::CaptureFrame() {
   if (capture_state_ == CS_RUNNING) {
     capturer_->CaptureFrame();
-    thread_->PostDelayed(RTC_FROM_HERE, capture_delay_, this, kCaptureMessageId);
+    thread_->PostDelayed(capture_delay_, this, kCaptureMessageId);
   }
 }
 

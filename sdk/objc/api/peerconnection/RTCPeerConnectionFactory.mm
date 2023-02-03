@@ -237,7 +237,7 @@
     cricket::MediaEngineDependencies media_deps;
 
     // always create ADM on worker thread
-    _nativeAudioDeviceModule = _workerThread->Invoke<rtc::scoped_refptr<webrtc::AudioDeviceModule>>(RTC_FROM_HERE, [&dependencies, &bypassVoiceProcessing]() {
+    _nativeAudioDeviceModule = _workerThread->BlockingCall<rtc::scoped_refptr<webrtc::AudioDeviceModule>>([&dependencies, &bypassVoiceProcessing]() {
       return webrtc::AudioDeviceModule::Create(webrtc::AudioDeviceModule::AudioLayer::kPlatformDefaultAudio,
                                                dependencies.task_queue_factory.get(),
                                                bypassVoiceProcessing == YES);

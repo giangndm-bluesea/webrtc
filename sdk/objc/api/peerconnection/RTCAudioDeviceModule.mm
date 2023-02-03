@@ -57,7 +57,7 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
   _sink = new AudioDeviceSink();
 
-  _workerThread->Invoke<void>(RTC_FROM_HERE, [self] {
+  _workerThread->BlockingCall<void>([&] {
     _native->SetAudioDeviceSink(_sink);
   });
 
@@ -66,21 +66,21 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (NSArray<RTC_OBJC_TYPE(RTCAudioDevice) *> *)outputDevices {
 
-  return _workerThread->Invoke<NSArray<RTC_OBJC_TYPE(RTCAudioDevice) *> *>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall([&] {
     return [self _outputDevices];
   });
 }
 
 - (NSArray<RTC_OBJC_TYPE(RTCAudioDevice) *> *)inputDevices {
 
-  return _workerThread->Invoke<NSArray<RTC_OBJC_TYPE(RTCAudioDevice) *> *>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall([&] {
     return [self _inputDevices];
   });
 }
 
 - (BOOL)setOutputDevice: (nullable RTCAudioDevice *)device {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self, device] {
+  return _workerThread->BlockingCall<BOOL>([&] {
 
     NSUInteger index = 0;
     NSArray *devices = [self _outputDevices];
@@ -113,7 +113,7 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)setInputDevice: (nullable RTCAudioDevice *)device {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self, device] {
+  return _workerThread->BlockingCall<BOOL>([&] {
 
     NSUInteger index = 0;
     NSArray *devices = [self _inputDevices];
@@ -146,14 +146,14 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)playing {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&] {
     return _native->Playing();
   });
 }
 
 - (BOOL)recording {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&] {
     return _native->Recording();
   });
 }
@@ -162,42 +162,42 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)startPlayout {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&] {
     return _native->StartPlayout() == 0;
   });
 }
 
 - (BOOL)stopPlayout {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&]) {
     return _native->StopPlayout() == 0;
   });
 }
 
 - (BOOL)initPlayout {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&]) {
     return _native->InitPlayout() == 0;
   });
 }
 
 - (BOOL)startRecording {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&]) {
     return _native->StartRecording() == 0;
   });
 }
 
 - (BOOL)stopRecording {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&]) {
     return _native->StopRecording() == 0;
   });
 }
 
 - (BOOL)initRecording {
 
-  return _workerThread->Invoke<BOOL>(RTC_FROM_HERE, [self] {
+  return _workerThread->BlockingCall<BOOL>([&]) {
     return _native->InitRecording() == 0;
   });
 }
