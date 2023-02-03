@@ -13,11 +13,17 @@
 #include <fstream>
 #include <memory>
 #include <string>
+#include <vector>
 
 #include "absl/flags/flag.h"
 #include "absl/memory/memory.h"
 #include "absl/strings/match.h"
 #include "absl/types/optional.h"
+#include "api/test/metrics/chrome_perf_dashboard_metrics_exporter.h"
+#include "api/test/metrics/global_metrics_logger_and_exporter.h"
+#include "api/test/metrics/metrics_exporter.h"
+#include "api/test/metrics/print_result_proxy_metrics_exporter.h"
+#include "api/test/metrics/stdout_metrics_exporter.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/event_tracer.h"
 #include "rtc_base/logging.h"
@@ -28,6 +34,7 @@
 #include "system_wrappers/include/metrics.h"
 #include "test/field_trial.h"
 #include "test/gtest.h"
+#include "test/test_flags.h"
 #include "test/testsupport/perf_test.h"
 #include "test/testsupport/resources_dir_flag.h"
 
@@ -64,21 +71,10 @@ ABSL_FLAG(std::string,
           "",
           "Path to output an empty JSON file which Chromium infra requires.");
 
-ABSL_FLAG(
-    std::string,
-    isolated_script_test_perf_output,
-    "",
-    "Path where the perf results should be stored in proto format described "
-    "described by histogram.proto in "
-    "https://chromium.googlesource.com/catapult/.");
-
-constexpr char kPlotAllMetrics[] = "all";
-ABSL_FLAG(std::vector<std::string>,
-          plot,
-          {},
-          "List of metrics that should be exported for plotting (if they are "
-          "available). Example: psnr,ssim,encode_time. To plot all available "
-          " metrics pass 'all' as flag value");
+ABSL_FLAG(bool,
+          export_perf_results_new_api,
+          false,
+          "Tells to initialize new API for exporting performance metrics");
 
 ABSL_FLAG(bool, logs, true, "print logs to stderr");
 ABSL_FLAG(bool, verbose, false, "verbose logs to stderr");
@@ -89,16 +85,11 @@ ABSL_FLAG(std::string,
           "Path to collect trace events (json file) for chrome://tracing. "
           "If not set, events aren't captured.");
 
-ABSL_FLAG(std::string,
-          force_fieldtrials,
-          "",
-          "Field trials control experimental feature code which can be forced. "
-          "E.g. running with --force_fieldtrials=WebRTC-FooFeature/Enable/"
-          " will assign the group Enable to field trial WebRTC-FooFeature.");
-
 namespace webrtc {
 
 namespace {
+
+constexpr char kPlotAllMetrics[] = "all";
 
 class TestMainImpl : public TestMain {
  public:
@@ -161,21 +152,38 @@ class TestMainImpl : public TestMain {
 #if defined(WEBRTC_IOS)
     rtc::test::InitTestSuite(RUN_ALL_TESTS, argc, argv,
                              absl::GetFlag(FLAGS_write_perf_output_on_ios),
+                             absl::GetFlag(FLAGS_export_perf_results_new_api),
                              metrics_to_plot);
     rtc::test::RunTestsFromIOSApp();
     int exit_code = 0;
 #else
     int exit_code = RUN_ALL_TESTS();
 
-    std::string perf_output_file =
-        absl::GetFlag(FLAGS_isolated_script_test_perf_output);
-    if (!perf_output_file.empty()) {
-      if (!webrtc::test::WritePerfResults(perf_output_file)) {
-        return 1;
+    std::vector<std::unique_ptr<test::MetricsExporter>> exporters;
+    if (absl::GetFlag(FLAGS_export_perf_results_new_api)) {
+      exporters.push_back(std::make_unique<test::StdoutMetricsExporter>());
+      if (!absl::GetFlag(FLAGS_isolated_script_test_perf_output).empty()) {
+        exporters.push_back(
+            std::make_unique<test::ChromePerfDashboardMetricsExporter>(
+                absl::GetFlag(FLAGS_isolated_script_test_perf_output)));
       }
+    } else {
+      exporters.push_back(
+          std::make_unique<test::PrintResultProxyMetricsExporter>());
     }
-    if (metrics_to_plot) {
-      webrtc::test::PrintPlottableResults(*metrics_to_plot);
+    test::ExportPerfMetric(*test::GetGlobalMetricsLogger(),
+                           std::move(exporters));
+    if (!absl::GetFlag(FLAGS_export_perf_results_new_api)) {
+      std::string perf_output_file =
+          absl::GetFlag(FLAGS_isolated_script_test_perf_output);
+      if (!perf_output_file.empty()) {
+        if (!webrtc::test::WritePerfResults(perf_output_file)) {
+          return 1;
+        }
+      }
+      if (metrics_to_plot) {
+        webrtc::test::PrintPlottableResults(*metrics_to_plot);
+      }
     }
 
     std::string result_filename =
@@ -183,7 +191,6 @@ class TestMainImpl : public TestMain {
     if (!result_filename.empty()) {
       std::ofstream result_file(result_filename);
       result_file << "{\"version\": 3}";
-      result_file.close();
     }
 #endif
 

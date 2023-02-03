@@ -13,6 +13,7 @@
 #include <memory>
 #include <string>
 
+#include "absl/strings/string_view.h"
 #include "modules/audio_device/audio_device_buffer.h"
 #include "rtc_base/arraysize.h"
 #include "rtc_base/checks.h"
@@ -179,9 +180,15 @@ CoreAudioBase::CoreAudioBase(Direction direction,
   // invalidated or the stream format has changed.
   restart_event_.Set(CreateEvent(nullptr, false, false, nullptr));
   RTC_DCHECK(restart_event_.IsValid());
+
+  enumerator_ = core_audio_utility::CreateDeviceEnumerator();
+  enumerator_->RegisterEndpointNotificationCallback(this);
+  RTC_LOG(LS_INFO) << __FUNCTION__
+                    << ":Registered endpoint notification callback.";
 }
 
 CoreAudioBase::~CoreAudioBase() {
+  enumerator_->UnregisterEndpointNotificationCallback(this);
   RTC_DLOG(LS_INFO) << __FUNCTION__;
   RTC_DCHECK_EQ(ref_count_, 1);
 }
@@ -230,7 +237,7 @@ bool CoreAudioBase::IsDefaultCommunicationsDevice(int index) const {
   return index == kDefaultCommunications;
 }
 
-bool CoreAudioBase::IsDefaultDeviceId(const std::string& device_id) const {
+bool CoreAudioBase::IsDefaultDeviceId(absl::string_view device_id) const {
   // Returns true if `device_id` corresponds to the id of the default
   // device. Note that, if only one device is available (or if the user has not
   // explicitly set a default device), `device_id` will also math
@@ -242,7 +249,7 @@ bool CoreAudioBase::IsDefaultDeviceId(const std::string& device_id) const {
 }
 
 bool CoreAudioBase::IsDefaultCommunicationsDeviceId(
-    const std::string& device_id) const {
+    absl::string_view device_id) const {
   // Returns true if `device_id` corresponds to the id of the default
   // communication device. Note that, if only one device is available (or if
   // the user has not explicitly set a communication device), `device_id` will
@@ -862,6 +869,18 @@ HRESULT CoreAudioBase::OnChannelVolumeChanged(DWORD channel_count,
 // IAudioSessionEvents::OnGroupingParamChanged
 HRESULT CoreAudioBase::OnGroupingParamChanged(LPCGUID new_grouping_param,
                                               LPCGUID event_context) {
+  return S_OK;
+}
+
+// IMMNotificationClient::OnDefaultDeviceChanged
+HRESULT __stdcall CoreAudioBase::OnDefaultDeviceChanged(EDataFlow flow,
+                                         ERole role,
+                                         LPCWSTR pwstrDefaultDeviceId) {
+  // We only handle the output device.
+  RTC_LOG(LS_ERROR) << "OnDefaultDeviceChanged invoked.";
+  if (flow != eRender || role != eCommunications)
+    return S_OK;
+  Restart();
   return S_OK;
 }
 

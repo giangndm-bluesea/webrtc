@@ -35,7 +35,6 @@ namespace webrtc {
 // Forward declarations.
 class FrameEncryptorInterface;
 class RateLimiter;
-class RemoteBitrateEstimator;
 class RtcEventLog;
 class RTPSender;
 class Transport;
@@ -86,10 +85,6 @@ class RtpRtcpInterface : public RtcpFeedbackSenderInterface {
     // GetLatestReportBlockData().
     RtcpCnameCallback* rtcp_cname_callback = nullptr;
     ReportBlockDataObserver* report_block_data_observer = nullptr;
-
-    // Estimates the bandwidth available for a set of streams from the same
-    // client.
-    RemoteBitrateEstimator* remote_bitrate_estimator = nullptr;
 
     // Spread any bursts of packets into smaller bursts to minimize packet loss.
     RtpPacketSender* paced_sender = nullptr;
@@ -335,6 +330,9 @@ class RtpRtcpInterface : public RtcpFeedbackSenderInterface {
   // calling TrySendPacket(). Any generated FEC packets will be removed and
   // returned from the FEC generator.
   virtual std::vector<std::unique_ptr<RtpPacketToSend>> FetchFecPackets() = 0;
+
+  virtual void OnAbortedRetransmissions(
+      rtc::ArrayView<const uint16_t> sequence_numbers) = 0;
 
   virtual void OnPacketsAcknowledged(
       rtc::ArrayView<const uint16_t> sequence_numbers) = 0;

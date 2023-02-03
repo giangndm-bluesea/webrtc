@@ -28,6 +28,7 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/rate_limiter.h"
+#include "system_wrappers/include/field_trial.h"
 
 namespace webrtc {
 namespace {
@@ -35,6 +36,7 @@ static const int64_t kRetransmitWindowSizeMs = 500;
 static const size_t kMaxOverheadBytes = 500;
 
 constexpr TimeDelta kPacerQueueUpdateInterval = TimeDelta::Millis(25);
+const char kLowLatencyStreaming[] = "OWT-LowLatencyMode";
 
 TargetRateConstraints ConvertConstraints(int min_bitrate_bps,
                                          int max_bitrate_bps,
@@ -51,6 +53,11 @@ TargetRateConstraints ConvertConstraints(int min_bitrate_bps,
   if (start_bitrate_bps > 0)
     msg.starting_rate = DataRate::BitsPerSec(start_bitrate_bps);
   return msg;
+}
+
+bool LowLatencyStreamingEnabled() {
+  std::string trial = webrtc::field_trial::FindFullName(kLowLatencyStreaming);
+  return trial.find("Enabled") == 0;
 }
 
 TargetRateConstraints ConvertConstraints(const BitrateConstraints& contraints,
@@ -118,9 +125,13 @@ RtpTransportControllerSend::RtpTransportControllerSend(
       congestion_window_size_(DataSize::PlusInfinity()),
       is_congested_(false),
       retransmission_rate_limiter_(clock, kRetransmitWindowSizeMs),
-      task_queue_(task_queue_factory->CreateTaskQueue(
-          "rtp_send_controller",
-          TaskQueueFactory::Priority::NORMAL)),
+      task_queue_(LowLatencyStreamingEnabled()
+                      ? task_queue_factory->CreateTaskQueue(
+                            "rtp_send_controller",
+                            TaskQueueFactory::Priority::HIGH)
+                      : task_queue_factory->CreateTaskQueue(
+                            "rtp_send_controller",
+                            TaskQueueFactory::Priority::NORMAL)),
       field_trials_(trials) {
   ParseFieldTrial({&relay_bandwidth_cap_},
                   trials.Lookup("WebRTC-Bwe-NetworkRouteConstraints"));
@@ -131,10 +142,6 @@ RtpTransportControllerSend::RtpTransportControllerSend(
 
   pacer_.SetPacingRates(DataRate::BitsPerSec(bitrate_config.start_bitrate_bps),
                         DataRate::Zero());
-
-  if (absl::StartsWith(trials.Lookup("WebRTC-LazyPacerStart"), "Disabled")) {
-    EnsureStarted();
-  }
 }
 
 RtpTransportControllerSend::~RtpTransportControllerSend() {
@@ -284,8 +291,11 @@ void RtpTransportControllerSend::OnNetworkRouteChanged(
       ApplyOrLiftRelayCap(IsRelayed(network_route));
 
   // Check whether the network route has changed on each transport.
-  auto result =
-      network_routes_.insert(std::make_pair(transport_name, network_route));
+  auto result = network_routes_.insert(
+      // Explicit conversion of transport_name to std::string here is necessary
+      // to support some platforms that cannot yet deal with implicit
+      // conversion in these types of situations.
+      std::make_pair(std::string(transport_name), network_route));
   auto kv = result.first;
   bool inserted = result.second;
   if (inserted || !(kv->second == network_route)) {
@@ -557,8 +567,7 @@ void RtpTransportControllerSend::OnTransportFeedback(
                                                              feedback_time);
     if (feedback_msg) {
       if (controller_)
-        PostUpdates(controller_->OnTransportPacketsFeedback(*feedback_msg));
-
+        PostUpdates(controller_->OnTransportPacketsFeedback(*feedback_msg, 0));
       // Only update outstanding data if any packet is first time acked.
       UpdateCongestedState();
     }

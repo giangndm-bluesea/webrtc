@@ -39,9 +39,9 @@ if (rtc_include_tests) {
     sources = [ "file_wrapper_unittest.cc" ]
     deps = [
       ":file_wrapper",
-      "//rtc_base:checks",
-      "//test:fileutils",
-      "//test:test_support",
+      "../:checks",
+      "../../test:fileutils",
+      "../../test:test_support",
     ]
   }
 }
@@ -71,6 +71,12 @@ rtc_source_set("rtc_export") {
 
 rtc_source_set("no_unique_address") {
   sources = [ "no_unique_address.h" ]
+}
+
+rtc_source_set("no_cfi_icall") {
+  sources = [ "no_cfi_icall.h" ]
+
+  deps = [ "..:sanitizer" ]
 }
 
 if (is_mac || is_ios) {

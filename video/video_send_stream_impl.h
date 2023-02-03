@@ -20,12 +20,12 @@
 
 #include "absl/types/optional.h"
 #include "api/field_trials_view.h"
+#include "api/task_queue/pending_task_safety_flag.h"
+#include "api/task_queue/task_queue_base.h"
 #include "api/video/encoded_image.h"
 #include "api/video/video_bitrate_allocation.h"
 #include "api/video/video_bitrate_allocator.h"
-#include "api/video/video_stream_encoder_interface.h"
 #include "api/video_codecs/video_encoder.h"
-#include "api/video_codecs/video_encoder_config.h"
 #include "call/bitrate_allocator.h"
 #include "call/rtp_config.h"
 #include "call/rtp_transport_controller_send_interface.h"
@@ -35,11 +35,11 @@
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "rtc_base/experiments/field_trial_parser.h"
 #include "rtc_base/system/no_unique_address.h"
-#include "rtc_base/task_queue.h"
-#include "rtc_base/task_utils/pending_task_safety_flag.h"
 #include "rtc_base/task_utils/repeating_task.h"
 #include "rtc_base/thread_annotations.h"
+#include "video/config/video_encoder_config.h"
 #include "video/send_statistics_proxy.h"
+#include "video/video_stream_encoder_interface.h"
 
 namespace webrtc {
 namespace internal {
@@ -66,7 +66,7 @@ class VideoSendStreamImpl : public webrtc::BitrateAllocatorObserver,
  public:
   VideoSendStreamImpl(Clock* clock,
                       SendStatisticsProxy* stats_proxy,
-                      rtc::TaskQueue* rtp_transport_queue,
+                      TaskQueueBase* rtp_transport_queue,
                       RtpTransportControllerSendInterface* transport,
                       BitrateAllocatorInterface* bitrate_allocator,
                       VideoStreamEncoderInterface* video_stream_encoder,
@@ -139,7 +139,7 @@ class VideoSendStreamImpl : public webrtc::BitrateAllocatorObserver,
   SendStatisticsProxy* const stats_proxy_;
   const VideoSendStream::Config* const config_;
 
-  rtc::TaskQueue* const rtp_transport_queue_;
+  TaskQueueBase* const rtp_transport_queue_;
 
   RepeatingTaskHandle check_encoder_activity_task_
       RTC_GUARDED_BY(rtp_transport_queue_);

@@ -44,8 +44,13 @@ VCMPacket::VCMPacket(const uint8_t* ptr,
       markerBit(rtp_header.markerBit),
       timesNacked(-1),
       completeNALU(kNaluIncomplete),
+#ifdef WEBRTC_USE_H265
+      insertStartCode((videoHeader.codec == kVideoCodecH264 || videoHeader.codec == kVideoCodecH265) &&
+                      videoHeader.is_first_packet_in_frame),
+#else
       insertStartCode(videoHeader.codec == kVideoCodecH264 &&
                       videoHeader.is_first_packet_in_frame),
+#endif
       video_header(videoHeader),
       packet_info(rtp_header, receive_time) {
   if (is_first_packet_in_frame() && markerBit) {
@@ -58,7 +63,6 @@ VCMPacket::VCMPacket(const uint8_t* ptr,
     completeNALU = kNaluIncomplete;
   }
 
-  // TODO(nisse): Delete?
   // Playout decisions are made entirely based on first packet in a frame.
   if (!is_first_packet_in_frame()) {
     video_header.playout_delay = {-1, -1};

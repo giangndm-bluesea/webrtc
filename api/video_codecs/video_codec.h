@@ -44,6 +44,11 @@ struct VideoCodecVP8 {
   bool operator!=(const VideoCodecVP8& other) const {
     return !(*this == other);
   }
+  // Temporary utility method for transition deleting numberOfTemporalLayers
+  // setting (replaced by ScalabilityMode).
+  void SetNumberOfTemporalLayers(unsigned char n) {
+    numberOfTemporalLayers = n;
+  }
   unsigned char numberOfTemporalLayers;
   bool denoisingOn;
   bool automaticResizeOn;
@@ -62,6 +67,11 @@ struct VideoCodecVP9 {
   bool operator!=(const VideoCodecVP9& other) const {
     return !(*this == other);
   }
+  // Temporary utility method for transition deleting numberOfTemporalLayers
+  // setting (replaced by ScalabilityMode).
+  void SetNumberOfTemporalLayers(unsigned char n) {
+    numberOfTemporalLayers = n;
+  }
   unsigned char numberOfTemporalLayers;
   bool denoisingOn;
   int keyFrameInterval;
@@ -78,8 +88,28 @@ struct VideoCodecH264 {
   bool operator!=(const VideoCodecH264& other) const {
     return !(*this == other);
   }
+  // Temporary utility method for transition deleting numberOfTemporalLayers
+  // setting (replaced by ScalabilityMode).
+  void SetNumberOfTemporalLayers(unsigned char n) {
+    numberOfTemporalLayers = n;
+  }
   int keyFrameInterval;
   uint8_t numberOfTemporalLayers;
+};
+
+struct VideoCodecH265 {
+  bool operator==(const VideoCodecH265& other) const;
+  bool operator!=(const VideoCodecH265& other) const {
+    return !(*this == other);
+  }
+  bool frameDroppingOn;
+  int keyFrameInterval;
+  const uint8_t* vpsData;
+  size_t vpsLen;
+  const uint8_t* spsData;
+  size_t spsLen;
+  const uint8_t* ppsData;
+  size_t ppsLen;
 };
 
 // Translates from name of codec to codec type and vice versa.
@@ -90,6 +120,7 @@ union VideoCodecUnion {
   VideoCodecVP8 VP8;
   VideoCodecVP9 VP9;
   VideoCodecH264 H264;
+  VideoCodecH265 H265;
 };
 
 enum class VideoCodecMode { kRealtimeVideo, kScreensharing };
@@ -169,6 +200,8 @@ class RTC_EXPORT VideoCodec {
   const VideoCodecVP9& VP9() const;
   VideoCodecH264* H264();
   const VideoCodecH264& H264() const;
+  VideoCodecH265* H265();
+  const VideoCodecH265& H265() const;
 
  private:
   // TODO(hta): Consider replacing the union with a pointer type.

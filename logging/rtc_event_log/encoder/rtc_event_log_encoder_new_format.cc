@@ -49,7 +49,6 @@
 #include "modules/rtp_rtcp/source/rtcp_packet/app.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/bye.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/common_header.h"
-#include "modules/rtp_rtcp/source/rtcp_packet/extended_jitter_report.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/extended_reports.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/psfb.h"
 #include "modules/rtp_rtcp/source/rtcp_packet/receiver_report.h"
@@ -104,6 +103,8 @@ rtclog2::FrameDecodedEvents::Codec ConvertToProtoFormat(VideoCodecType codec) {
       return rtclog2::FrameDecodedEvents::CODEC_AV1;
     case VideoCodecType::kVideoCodecH264:
       return rtclog2::FrameDecodedEvents::CODEC_H264;
+    case VideoCodecType::kVideoCodecH265:
+      return rtclog2::FrameDecodedEvents::CODEC_H265;
     case VideoCodecType::kVideoCodecMultiplex:
       // This codec type is afaik not used.
       return rtclog2::FrameDecodedEvents::CODEC_UNKNOWN;
@@ -306,15 +307,13 @@ size_t RemoveNonAllowlistedRtcpBlocks(const rtc::Buffer& packet,
     size_t block_size = next_block - block_begin;
     switch (header.type()) {
       case rtcp::Bye::kPacketType:
-      case rtcp::ExtendedJitterReport::kPacketType:
       case rtcp::ExtendedReports::kPacketType:
       case rtcp::Psfb::kPacketType:
       case rtcp::ReceiverReport::kPacketType:
       case rtcp::Rtpfb::kPacketType:
       case rtcp::SenderReport::kPacketType:
-        // We log sender reports, receiver reports, bye messages
-        // inter-arrival jitter, third-party loss reports, payload-specific
-        // feedback and extended reports.
+        // We log sender reports, receiver reports, bye messages, third-party
+        // loss reports, payload-specific feedback and extended reports.
         // TODO(terelius): As an optimization, don't copy anything if all blocks
         // in the packet are allowlisted types.
         memcpy(buffer + buffer_length, block_begin, block_size);

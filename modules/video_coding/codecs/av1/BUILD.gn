@@ -23,9 +23,12 @@ rtc_library("av1_svc_config") {
     "../../svc:scalability_structures",
     "../../svc:scalable_video_controller",
   ]
+
+  absl_deps = [ "//third_party/abseil-cpp/absl/container:inlined_vector" ]
 }
 
 rtc_library("dav1d_decoder") {
+  visibility = [ "*" ]
   poisonous = [ "software_video_codecs" ]
   public = [ "dav1d_decoder.h" ]
   sources = [ "dav1d_decoder.cc" ]
@@ -42,31 +45,6 @@ rtc_library("dav1d_decoder") {
     "//third_party/libyuv",
   ]
   absl_deps = [ "//third_party/abseil-cpp/absl/types:optional" ]
-}
-
-rtc_library("libaom_av1_decoder") {
-  visibility = [ "*" ]
-  poisonous = [ "software_video_codecs" ]
-  public = [ "libaom_av1_decoder.h" ]
-  deps = [ "../../../../api/video_codecs:video_codecs_api" ]
-  absl_deps = [ "//third_party/abseil-cpp/absl/base:core_headers" ]
-
-  if (enable_libaom) {
-    sources = [ "libaom_av1_decoder.cc" ]
-    deps += [
-      "../..:video_codec_interface",
-      "../../../../api:scoped_refptr",
-      "../../../../api/video:encoded_image",
-      "../../../../api/video:video_frame",
-      "../../../../common_video",
-      "../../../../rtc_base:logging",
-      "//third_party/libaom",
-      "//third_party/libyuv",
-    ]
-    absl_deps += [ "//third_party/abseil-cpp/absl/types:optional" ]
-  } else {
-    sources = [ "libaom_av1_decoder_absent.cc" ]
-  }
 }
 
 rtc_library("libaom_av1_encoder") {
@@ -89,6 +67,7 @@ rtc_library("libaom_av1_encoder") {
   ]
   absl_deps = [
     "//third_party/abseil-cpp/absl/algorithm:container",
+    "//third_party/abseil-cpp/absl/base:core_headers",
     "//third_party/abseil-cpp/absl/strings:strings",
     "//third_party/abseil-cpp/absl/types:optional",
   ]
@@ -111,7 +90,7 @@ if (rtc_include_tests) {
         "libaom_av1_unittest.cc",
       ]
       deps += [
-        ":libaom_av1_decoder",
+        ":dav1d_decoder",
         ":libaom_av1_encoder",
         "../..:encoded_video_frame_producer",
         "../..:video_codec_interface",

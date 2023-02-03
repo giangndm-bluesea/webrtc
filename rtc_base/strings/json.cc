@@ -243,7 +243,7 @@ bool GetDoubleFromJsonArray(const Json::Value& in, size_t n, double* out) {
 bool GetValueFromJsonObject(const Json::Value& in,
                             absl::string_view k,
                             Json::Value* out) {
-  std::string k_str = std::string(k);
+  std::string k_str(k);
   if (!in.isObject() || !in.isMember(k_str)) {
     return false;
   }
@@ -289,8 +289,7 @@ bool GetDoubleFromJsonObject(const Json::Value& in,
 
 std::string JsonValueToString(const Json::Value& json) {
   Json::StreamWriterBuilder builder;
-  std::string output = Json::writeString(builder, json);
-  return output.substr(0, output.size() - 1);  // trim trailing newline
+  return Json::writeString(builder, json);
 }
 
 }  // namespace rtc

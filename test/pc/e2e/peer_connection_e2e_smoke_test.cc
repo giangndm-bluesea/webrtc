@@ -15,6 +15,7 @@
 #include "api/test/create_network_emulation_manager.h"
 #include "api/test/create_peer_connection_quality_test_frame_generator.h"
 #include "api/test/create_peerconnection_quality_test_fixture.h"
+#include "api/test/metrics/global_metrics_logger_and_exporter.h"
 #include "api/test/network_emulation_manager.h"
 #include "api/test/peerconnection_quality_test_fixture.h"
 #include "call/simulated_network.h"
@@ -37,6 +38,8 @@ namespace {
 
 class PeerConnectionE2EQualityTestSmokeTest : public ::testing::Test {
  public:
+  using EmulatedSFUConfig =
+      PeerConnectionE2EQualityTestFixture::EmulatedSFUConfig;
   using PeerConfigurer = PeerConnectionE2EQualityTestFixture::PeerConfigurer;
   using RunParams = PeerConnectionE2EQualityTestFixture::RunParams;
   using VideoConfig = PeerConnectionE2EQualityTestFixture::VideoConfig;
@@ -54,7 +57,8 @@ class PeerConnectionE2EQualityTestSmokeTest : public ::testing::Test {
   void SetUp() override {
     network_emulation_ = CreateNetworkEmulationManager();
     auto video_quality_analyzer = std::make_unique<DefaultVideoQualityAnalyzer>(
-        network_emulation_->time_controller()->GetClock());
+        network_emulation_->time_controller()->GetClock(),
+        test::GetGlobalMetricsLogger());
     video_quality_analyzer_ = video_quality_analyzer.get();
     fixture_ = CreatePeerConnectionE2EQualityTestFixture(
         testing::UnitTest::GetInstance()->current_test_info()->name(),
@@ -181,7 +185,7 @@ TEST_F(PeerConnectionE2EQualityTestSmokeTest, MAYBE_Smoke) {
           std::map<std::string, std::vector<EmulatedEndpoint*>>(
               {{"alice", network_links.first->endpoints()},
                {"charlie", network_links.second->endpoints()}}),
-          network_emulation()));
+          network_emulation(), test::GetGlobalMetricsLogger()));
   RunParams run_params(TimeDelta::Seconds(2));
   run_params.enable_flex_fec_support = true;
   RunAndCheckEachVideoStreamReceivedFrames(run_params);
@@ -233,7 +237,7 @@ TEST_F(PeerConnectionE2EQualityTestSmokeTest, SmokeH264) {
           std::map<std::string, std::vector<EmulatedEndpoint*>>(
               {{"alice", network_links.first->endpoints()},
                {"charlie", network_links.second->endpoints()}}),
-          network_emulation()));
+          network_emulation(), test::GetGlobalMetricsLogger()));
   RunParams run_params(TimeDelta::Seconds(2));
   run_params.enable_flex_fec_support = true;
   RunAndCheckEachVideoStreamReceivedFrames(run_params);
@@ -300,7 +304,7 @@ TEST_F(PeerConnectionE2EQualityTestSmokeTest, MAYBE_ChangeNetworkConditions) {
           std::map<std::string, std::vector<EmulatedEndpoint*>>(
               {{"alice", alice_network->endpoints()},
                {"bob", bob_network->endpoints()}}),
-          network_emulation()));
+          network_emulation(), test::GetGlobalMetricsLogger()));
 
   fixture()->ExecuteAt(TimeDelta::Seconds(1), [alice_node](TimeDelta) {
     BuiltInNetworkBehaviorConfig config;
@@ -382,7 +386,8 @@ TEST_F(PeerConnectionE2EQualityTestSmokeTest, MAYBE_Simulcast) {
   AddPeer(network_links.first, [](PeerConfigurer* alice) {
     VideoConfig simulcast(1280, 720, 15);
     simulcast.stream_label = "alice-simulcast";
-    simulcast.simulcast_config = VideoSimulcastConfig(2, 0);
+    simulcast.simulcast_config = VideoSimulcastConfig(2);
+    simulcast.emulated_sfu_config = EmulatedSFUConfig(0);
     alice->AddVideoConfig(std::move(simulcast));
 
     AudioConfig audio;
@@ -410,7 +415,8 @@ TEST_F(PeerConnectionE2EQualityTestSmokeTest, MAYBE_Svc) {
     VideoConfig simulcast("alice-svc", 1280, 720, 15);
     // Because we have network with packets loss we can analyze only the
     // highest spatial layer in SVC mode.
-    simulcast.simulcast_config = VideoSimulcastConfig(2, 1);
+    simulcast.simulcast_config = VideoSimulcastConfig(2);
+    simulcast.emulated_sfu_config = EmulatedSFUConfig(1);
     alice->AddVideoConfig(std::move(simulcast));
 
     AudioConfig audio("alice-audio");

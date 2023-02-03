@@ -33,7 +33,6 @@
 #include "modules/rtp_rtcp/source/rtp_rtcp_impl2.h"
 #include "rtc_base/checks.h"
 #include "rtc_base/event.h"
-#include "rtc_base/location.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/numerics/safe_conversions.h"
 #include "rtc_base/race_checker.h"
@@ -41,6 +40,7 @@
 #include "rtc_base/synchronization/mutex.h"
 #include "rtc_base/task_queue.h"
 #include "rtc_base/time_utils.h"
+#include "rtc_base/trace_event.h"
 #include "system_wrappers/include/clock.h"
 #include "system_wrappers/include/metrics.h"
 
@@ -61,10 +61,6 @@ class ChannelSend : public ChannelSendInterface,
                                                         // packets from the ACM
                     public RtcpPacketTypeCounterObserver {
  public:
-  // TODO(nisse): Make OnUplinkPacketLossRate public, and delete friend
-  // declaration.
-  friend class VoERtcpObserver;
-
   ChannelSend(Clock* clock,
               TaskQueueFactory* task_queue_factory,
               Transport* rtp_transport,
@@ -156,6 +152,8 @@ class ChannelSend : public ChannelSendInterface,
       uint32_t ssrc,
       const RtcpPacketTypeCounter& packet_counter) override;
 
+  void OnUplinkPacketLossRate(float packet_loss_rate);
+
  private:
   // From AudioPacketizationCallback in the ACM
   int32_t SendData(AudioFrameType frameType,
@@ -166,7 +164,6 @@ class ChannelSend : public ChannelSendInterface,
                    int64_t absolute_capture_timestamp_ms) override;
 
   void OnUplinkPacketLossRate(float packet_loss_rate);
-
   int32_t SendRtpAudio(AudioFrameType frameType,
                        uint8_t payloadType,
                        uint32_t rtp_timestamp,
@@ -806,6 +803,8 @@ void ChannelSend::RtcpPacketTypesCounterUpdated(
 
 void ChannelSend::ProcessAndEncodeAudio(
     std::unique_ptr<AudioFrame> audio_frame) {
+  TRACE_EVENT0("webrtc", "ChannelSend::ProcessAndEncodeAudio");
+
   RTC_DCHECK_RUNS_SERIALIZED(&audio_thread_race_checker_);
   RTC_DCHECK_GT(audio_frame->samples_per_channel_, 0);
   RTC_DCHECK_LE(audio_frame->num_channels_, 8);

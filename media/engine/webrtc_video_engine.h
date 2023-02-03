@@ -20,6 +20,7 @@
 #include "absl/types/optional.h"
 #include "api/call/transport.h"
 #include "api/sequence_checker.h"
+#include "api/task_queue/pending_task_safety_flag.h"
 #include "api/transport/field_trial_based_config.h"
 #include "api/video/video_bitrate_allocator_factory.h"
 #include "api/video/video_frame.h"
@@ -34,7 +35,7 @@
 #include "media/engine/unhandled_packets_buffer.h"
 #include "rtc_base/network_route.h"
 #include "rtc_base/synchronization/mutex.h"
-#include "rtc_base/task_utils/pending_task_safety_flag.h"
+#include "rtc_base/system/no_unique_address.h"
 #include "rtc_base/thread_annotations.h"
 
 namespace webrtc {
@@ -329,6 +330,15 @@ class WebRtcVideoChannel : public VideoMediaChannel,
   static std::string CodecSettingsVectorToString(
       const std::vector<VideoCodecSettings>& codecs);
 
+  // Populates `rtx_associated_payload_types`, `raw_payload_types` and
+  // `decoders` based on codec settings provided by `recv_codecs`.
+  // `recv_codecs` must be non-empty and all other parameters must be empty.
+  static void ExtractCodecInformation(
+      rtc::ArrayView<const VideoCodecSettings> recv_codecs,
+      std::map<int, int>& rtx_associated_payload_types,
+      std::set<int>& raw_payload_types,
+      std::vector<webrtc::VideoReceiveStreamInterface::Decoder>& decoders);
+
   // Called when the local ssrc changes. Sets `rtcp_receiver_report_ssrc_` and
   // updates the receive streams.
   void SetReceiverReportSsrc(uint32_t ssrc) RTC_RUN_ON(&thread_checker_);
@@ -416,7 +426,7 @@ class WebRtcVideoChannel : public VideoMediaChannel,
     webrtc::DegradationPreference GetDegradationPreference() const
         RTC_EXCLUSIVE_LOCKS_REQUIRED(&thread_checker_);
 
-    webrtc::SequenceChecker thread_checker_;
+    RTC_NO_UNIQUE_ADDRESS webrtc::SequenceChecker thread_checker_;
     webrtc::TaskQueueBase* const worker_thread_;
     const std::vector<uint32_t> ssrcs_ RTC_GUARDED_BY(&thread_checker_);
     const std::vector<SsrcGroup> ssrc_groups_ RTC_GUARDED_BY(&thread_checker_);
@@ -509,14 +519,19 @@ class WebRtcVideoChannel : public VideoMediaChannel,
     void SetLocalSsrc(uint32_t local_ssrc);
 
    private:
+    // Attempts to reconfigure an already existing `flexfec_stream_`, create
+    // one if the configuration is now complete or remove a flexfec stream
+    // when disabled.
+    void SetFlexFecPayload(int payload_type);
+
     void RecreateReceiveStream();
+    void CreateReceiveStream();
+    void StartReceiveStream();
 
     // Applies a new receive codecs configration to `config_`. Returns true
     // if the internal stream needs to be reconstructed, or false if no changes
     // were applied.
-    bool ConfigureCodecs(const std::vector<VideoCodecSettings>& recv_codecs);
-
-    std::string GetCodecNameFromPayloadType(int payload_type);
+    bool ReconfigureCodecs(const std::vector<VideoCodecSettings>& recv_codecs);
 
     WebRtcVideoChannel* const channel_;
     webrtc::Call* const call_;
@@ -578,8 +593,8 @@ class WebRtcVideoChannel : public VideoMediaChannel,
 
   webrtc::TaskQueueBase* const worker_thread_;
   webrtc::ScopedTaskSafety task_safety_;
-  webrtc::SequenceChecker network_thread_checker_;
-  webrtc::SequenceChecker thread_checker_;
+  RTC_NO_UNIQUE_ADDRESS webrtc::SequenceChecker network_thread_checker_;
+  RTC_NO_UNIQUE_ADDRESS webrtc::SequenceChecker thread_checker_;
 
   uint32_t rtcp_receiver_report_ssrc_ RTC_GUARDED_BY(thread_checker_);
   bool sending_ RTC_GUARDED_BY(thread_checker_);
@@ -670,54 +685,6 @@ class WebRtcVideoChannel : public VideoMediaChannel,
   // of multiple negotiated codecs allows generic encoder fallback on failures.
   // Presence of EncoderSelector allows switching to specific encoders.
   bool allow_codec_switching_ = false;
-};
-
-class EncoderStreamFactory
-    : public webrtc::VideoEncoderConfig::VideoStreamFactoryInterface {
- public:
-  EncoderStreamFactory(std::string codec_name,
-                       int max_qp,
-                       bool is_screenshare,
-                       bool conference_mode)
-      : EncoderStreamFactory(codec_name,
-                             max_qp,
-                             is_screenshare,
-                             conference_mode,
-                             nullptr) {}
-
-  EncoderStreamFactory(std::string codec_name,
-                       int max_qp,
-                       bool is_screenshare,
-                       bool conference_mode,
-                       const webrtc::FieldTrialsView* trials);
-
- private:
-  std::vector<webrtc::VideoStream> CreateEncoderStreams(
-      int width,
-      int height,
-      const webrtc::VideoEncoderConfig& encoder_config) override;
-
-  std::vector<webrtc::VideoStream> CreateDefaultVideoStreams(
-      int width,
-      int height,
-      const webrtc::VideoEncoderConfig& encoder_config,
-      const absl::optional<webrtc::DataRate>& experimental_min_bitrate) const;
-
-  std::vector<webrtc::VideoStream>
-  CreateSimulcastOrConferenceModeScreenshareStreams(
-      int width,
-      int height,
-      const webrtc::VideoEncoderConfig& encoder_config,
-      const absl::optional<webrtc::DataRate>& experimental_min_bitrate) const;
-
-  const std::string codec_name_;
-  const int max_qp_;
-  const bool is_screenshare_;
-  // Allows a screenshare specific configuration, which enables temporal
-  // layering and various settings.
-  const bool conference_mode_;
-  const webrtc::FieldTrialBasedConfig fallback_trials_;
-  const webrtc::FieldTrialsView& trials_;
 };
 
 }  // namespace cricket

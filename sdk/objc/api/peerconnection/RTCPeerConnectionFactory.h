@@ -33,26 +33,25 @@ NS_ASSUME_NONNULL_BEGIN
 (RTCVideoEncoderFactory);
 @protocol RTC_OBJC_TYPE
 (RTCSSLCertificateVerifier);
+@protocol RTC_OBJC_TYPE
+(RTCAudioDevice);
 
 RTC_OBJC_EXPORT
 @interface RTC_OBJC_TYPE (RTCPeerConnectionFactory) : NSObject
 
-/* Initialize object with default H264 video encoder/decoder factories */
+/* Initialize object with default H264 video encoder/decoder factories and default ADM */
 - (instancetype)init;
 
-/* Initialize object with injectable video encoder/decoder factories */
+/* Initialize object with injectable video encoder/decoder factories and default ADM */
 - (instancetype)
     initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
             decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory;
 
-/* Initialize object with bypass voice processing */
+/* Initialize object with injectable video encoder/decoder factories and injectable ADM */
 - (instancetype)
-    initWithBypassVoiceProcessing:(BOOL)bypassVoiceProcessing
-                   encoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
-                   decoderFactory:
-                       (nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory;
-
-@property(nonatomic, readonly) RTCAudioDeviceModule *audioDeviceModule;
+    initWithEncoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoEncoderFactory)>)encoderFactory
+            decoderFactory:(nullable id<RTC_OBJC_TYPE(RTCVideoDecoderFactory)>)decoderFactory
+               audioDevice:(nullable id<RTC_OBJC_TYPE(RTCAudioDevice)>)audioDevice;
 
 /** Initialize an RTCAudioSource with constraints. */
 - (RTC_OBJC_TYPE(RTCAudioSource) *)audioSourceWithConstraints:

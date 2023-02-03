@@ -35,7 +35,6 @@
 #include "rtc_base/checks.h"
 #include "rtc_base/event_tracer.h"
 #include "rtc_base/gunit.h"
-#include "rtc_base/ref_counted_object.h"
 #include "rtc_base/thread.h"
 #include "rtc_base/trace_event.h"
 #include "rtc_base/virtual_socket_server.h"
@@ -112,9 +111,11 @@ class RTCStatsIntegrationTest : public ::testing::Test {
     RTC_CHECK(worker_thread_->Start());
 
     caller_ = rtc::make_ref_counted<PeerConnectionTestWrapper>(
-        "caller", network_thread_.get(), worker_thread_.get());
+        "caller", &virtual_socket_server_, network_thread_.get(),
+        worker_thread_.get());
     callee_ = rtc::make_ref_counted<PeerConnectionTestWrapper>(
-        "callee", network_thread_.get(), worker_thread_.get());
+        "callee", &virtual_socket_server_, network_thread_.get(),
+        worker_thread_.get());
   }
 
   void StartCall() {
@@ -486,7 +487,6 @@ class RTCStatsReportVerifier {
     verifier.TestMemberIsNonNegative<uint64_t>(candidate_pair.priority);
     verifier.TestMemberIsDefined(candidate_pair.nominated);
     verifier.TestMemberIsDefined(candidate_pair.writable);
-    verifier.TestMemberIsUndefined(candidate_pair.readable);
     verifier.TestMemberIsNonNegative<uint64_t>(candidate_pair.packets_sent);
     verifier.TestMemberIsNonNegative<uint64_t>(
         candidate_pair.packets_discarded_on_send);
@@ -514,13 +514,8 @@ class RTCStatsReportVerifier {
     verifier.TestMemberIsNonNegative<uint64_t>(
         candidate_pair.responses_received);
     verifier.TestMemberIsNonNegative<uint64_t>(candidate_pair.responses_sent);
-    verifier.TestMemberIsUndefined(candidate_pair.retransmissions_received);
-    verifier.TestMemberIsUndefined(candidate_pair.retransmissions_sent);
-    verifier.TestMemberIsUndefined(candidate_pair.consent_requests_received);
     verifier.TestMemberIsNonNegative<uint64_t>(
         candidate_pair.consent_requests_sent);
-    verifier.TestMemberIsUndefined(candidate_pair.consent_responses_received);
-    verifier.TestMemberIsUndefined(candidate_pair.consent_responses_sent);
 
     return verifier.ExpectAllMembersSuccessfullyTested();
   }
@@ -547,6 +542,11 @@ class RTCStatsReportVerifier {
     verifier.TestMemberIsNonNegative<int32_t>(candidate.priority);
     verifier.TestMemberIsUndefined(candidate.url);
     verifier.TestMemberIsUndefined(candidate.relay_protocol);
+    verifier.TestMemberIsDefined(candidate.foundation);
+    verifier.TestMemberIsUndefined(candidate.related_address);
+    verifier.TestMemberIsUndefined(candidate.related_port);
+    verifier.TestMemberIsDefined(candidate.username_fragment);
+    verifier.TestMemberIsUndefined(candidate.tcp_type);
     return verifier.ExpectAllMembersSuccessfullyTested();
   }
 
@@ -594,6 +594,12 @@ class RTCStatsReportVerifier {
             media_stream_track.frames_decoded);
         verifier.TestMemberIsNonNegative<uint32_t>(
             media_stream_track.frames_dropped);
+        verifier.TestMemberIsNonNegative<double>(
+            media_stream_track.total_frames_duration);
+        verifier.TestMemberIsNonNegative<double>(
+            media_stream_track.sum_squared_frame_durations);
+        // TODO(crbug.com/webrtc/14521): These metrics have been moved, delete
+        // them from "track".
         verifier.TestMemberIsNonNegative<uint32_t>(
             media_stream_track.freeze_count);
         verifier.TestMemberIsNonNegative<uint32_t>(
@@ -602,10 +608,6 @@ class RTCStatsReportVerifier {
             media_stream_track.total_freezes_duration);
         verifier.TestMemberIsNonNegative<double>(
             media_stream_track.total_pauses_duration);
-        verifier.TestMemberIsNonNegative<double>(
-            media_stream_track.total_frames_duration);
-        verifier.TestMemberIsNonNegative<double>(
-            media_stream_track.sum_squared_frame_durations);
       } else {
         verifier.TestMemberIsIDReference(media_stream_track.media_source_id,
                                          RTCVideoSourceStats::kType);
@@ -620,26 +622,24 @@ class RTCStatsReportVerifier {
         verifier.TestMemberIsUndefined(media_stream_track.frames_received);
         verifier.TestMemberIsUndefined(media_stream_track.frames_decoded);
         verifier.TestMemberIsUndefined(media_stream_track.frames_dropped);
+        verifier.TestMemberIsUndefined(
+            media_stream_track.total_frames_duration);
+        verifier.TestMemberIsUndefined(
+            media_stream_track.sum_squared_frame_durations);
+        // TODO(crbug.com/webrtc/14521): These metrics have been moved, delete
+        // them from "track".
         verifier.TestMemberIsUndefined(media_stream_track.freeze_count);
         verifier.TestMemberIsUndefined(media_stream_track.pause_count);
         verifier.TestMemberIsUndefined(
             media_stream_track.total_freezes_duration);
         verifier.TestMemberIsUndefined(
             media_stream_track.total_pauses_duration);
-        verifier.TestMemberIsUndefined(
-            media_stream_track.total_frames_duration);
-        verifier.TestMemberIsUndefined(
-            media_stream_track.sum_squared_frame_durations);
       }
       // Video-only members
       verifier.TestMemberIsNonNegative<uint32_t>(
           media_stream_track.frame_width);
       verifier.TestMemberIsNonNegative<uint32_t>(
           media_stream_track.frame_height);
-      verifier.TestMemberIsUndefined(media_stream_track.frames_per_second);
-      verifier.TestMemberIsUndefined(media_stream_track.frames_corrupted);
-      verifier.TestMemberIsUndefined(media_stream_track.partial_frames_lost);
-      verifier.TestMemberIsUndefined(media_stream_track.full_frames_lost);
       // Audio-only members should be undefined
       verifier.TestMemberIsUndefined(media_stream_track.audio_level);
       verifier.TestMemberIsUndefined(media_stream_track.echo_return_loss);
@@ -656,6 +656,8 @@ class RTCStatsReportVerifier {
           media_stream_track.inserted_samples_for_deceleration);
       verifier.TestMemberIsUndefined(
           media_stream_track.removed_samples_for_acceleration);
+      // TODO(crbug.com/webrtc/14524): These metrics have been moved from
+      // "track" stats, delete them.
       verifier.TestMemberIsUndefined(media_stream_track.jitter_buffer_flushes);
       verifier.TestMemberIsUndefined(
           media_stream_track.delayed_packet_outage_samples);
@@ -664,8 +666,6 @@ class RTCStatsReportVerifier {
       verifier.TestMemberIsUndefined(media_stream_track.interruption_count);
       verifier.TestMemberIsUndefined(
           media_stream_track.total_interruption_duration);
-      verifier.TestMemberIsUndefined(
-          media_stream_track.jitter_buffer_target_delay);
     } else {
       RTC_DCHECK_EQ(*media_stream_track.kind, RTCMediaStreamTrackKind::kAudio);
       // The type of the referenced media source depends on kind.
@@ -676,8 +676,6 @@ class RTCStatsReportVerifier {
             media_stream_track.jitter_buffer_delay);
         verifier.TestMemberIsNonNegative<uint64_t>(
             media_stream_track.jitter_buffer_emitted_count);
-        verifier.TestMemberIsNonNegative<double>(
-            media_stream_track.jitter_buffer_target_delay);
         verifier.TestMemberIsPositive<double>(media_stream_track.audio_level);
         verifier.TestMemberIsPositive<double>(
             media_stream_track.total_audio_energy);
@@ -695,6 +693,8 @@ class RTCStatsReportVerifier {
             media_stream_track.inserted_samples_for_deceleration);
         verifier.TestMemberIsNonNegative<uint64_t>(
             media_stream_track.removed_samples_for_acceleration);
+        // TODO(crbug.com/webrtc/14524): These metrics have been moved from
+        // "track" stats, delete them.
         verifier.TestMemberIsNonNegative<uint64_t>(
             media_stream_track.jitter_buffer_flushes);
         verifier.TestMemberIsNonNegative<uint64_t>(
@@ -712,8 +712,6 @@ class RTCStatsReportVerifier {
         verifier.TestMemberIsUndefined(media_stream_track.jitter_buffer_delay);
         verifier.TestMemberIsUndefined(
             media_stream_track.jitter_buffer_emitted_count);
-        verifier.TestMemberIsUndefined(
-            media_stream_track.jitter_buffer_target_delay);
         verifier.TestMemberIsUndefined(media_stream_track.audio_level);
         verifier.TestMemberIsUndefined(media_stream_track.total_audio_energy);
         verifier.TestMemberIsUndefined(
@@ -728,6 +726,8 @@ class RTCStatsReportVerifier {
             media_stream_track.inserted_samples_for_deceleration);
         verifier.TestMemberIsUndefined(
             media_stream_track.removed_samples_for_acceleration);
+        // TODO(crbug.com/webrtc/14524): These metrics have been moved from
+        // "track" stats, delete them.
         verifier.TestMemberIsUndefined(
             media_stream_track.jitter_buffer_flushes);
         verifier.TestMemberIsUndefined(
@@ -741,19 +741,11 @@ class RTCStatsReportVerifier {
       // Video-only members should be undefined
       verifier.TestMemberIsUndefined(media_stream_track.frame_width);
       verifier.TestMemberIsUndefined(media_stream_track.frame_height);
-      verifier.TestMemberIsUndefined(media_stream_track.frames_per_second);
       verifier.TestMemberIsUndefined(media_stream_track.frames_sent);
       verifier.TestMemberIsUndefined(media_stream_track.huge_frames_sent);
       verifier.TestMemberIsUndefined(media_stream_track.frames_received);
       verifier.TestMemberIsUndefined(media_stream_track.frames_decoded);
       verifier.TestMemberIsUndefined(media_stream_track.frames_dropped);
-      verifier.TestMemberIsUndefined(media_stream_track.frames_corrupted);
-      verifier.TestMemberIsUndefined(media_stream_track.partial_frames_lost);
-      verifier.TestMemberIsUndefined(media_stream_track.full_frames_lost);
-      verifier.TestMemberIsUndefined(media_stream_track.freeze_count);
-      verifier.TestMemberIsUndefined(media_stream_track.pause_count);
-      verifier.TestMemberIsUndefined(media_stream_track.total_freezes_duration);
-      verifier.TestMemberIsUndefined(media_stream_track.total_pauses_duration);
       verifier.TestMemberIsUndefined(media_stream_track.total_frames_duration);
       verifier.TestMemberIsUndefined(
           media_stream_track.sum_squared_frame_durations);
@@ -765,6 +757,12 @@ class RTCStatsReportVerifier {
       verifier.MarkMemberTested(media_stream_track.echo_return_loss, true);
       verifier.MarkMemberTested(media_stream_track.echo_return_loss_enhancement,
                                 true);
+      // TODO(crbug.com/webrtc/14521): These metrics have been moved, delete
+      // them from "track".
+      verifier.TestMemberIsUndefined(media_stream_track.freeze_count);
+      verifier.TestMemberIsUndefined(media_stream_track.pause_count);
+      verifier.TestMemberIsUndefined(media_stream_track.total_freezes_duration);
+      verifier.TestMemberIsUndefined(media_stream_track.total_pauses_duration);
     }
     return verifier.ExpectAllMembersSuccessfullyTested();
   }
@@ -809,13 +807,12 @@ class RTCStatsReportVerifier {
   bool VerifyRTCInboundRTPStreamStats(
       const RTCInboundRTPStreamStats& inbound_stream) {
     RTCStatsVerifier verifier(report_.get(), &inbound_stream);
-    VerifyRTCReceivedRtpStreamStats(inbound_stream, verifier,
-                                    inbound_stream.kind.is_defined() &&
-                                        *inbound_stream.media_type == "audio");
+    VerifyRTCReceivedRtpStreamStats(inbound_stream, verifier);
     verifier.TestMemberIsOptionalIDReference(
         inbound_stream.remote_id, RTCRemoteOutboundRtpStreamStats::kType);
-    if (inbound_stream.kind.is_defined() &&
-        *inbound_stream.media_type == "video") {
+    verifier.TestMemberIsDefined(inbound_stream.mid);
+    verifier.TestMemberIsDefined(inbound_stream.track_identifier);
+    if (inbound_stream.kind.is_defined() && *inbound_stream.kind == "video") {
       verifier.TestMemberIsNonNegative<uint64_t>(inbound_stream.qp_sum);
       verifier.TestMemberIsDefined(inbound_stream.decoder_implementation);
     } else {
@@ -823,13 +820,15 @@ class RTCStatsReportVerifier {
       verifier.TestMemberIsUndefined(inbound_stream.decoder_implementation);
     }
     verifier.TestMemberIsNonNegative<uint32_t>(inbound_stream.packets_received);
-    if (inbound_stream.kind.is_defined() &&
-        *inbound_stream.media_type == "audio") {
+    if (inbound_stream.kind.is_defined() && *inbound_stream.kind == "audio") {
+      verifier.TestMemberIsNonNegative<uint64_t>(
+          inbound_stream.packets_discarded);
       verifier.TestMemberIsNonNegative<uint64_t>(
           inbound_stream.fec_packets_received);
       verifier.TestMemberIsNonNegative<uint64_t>(
           inbound_stream.fec_packets_discarded);
     } else {
+      verifier.TestMemberIsUndefined(inbound_stream.packets_discarded);
       verifier.TestMemberIsUndefined(inbound_stream.fec_packets_received);
       verifier.TestMemberIsUndefined(inbound_stream.fec_packets_discarded);
     }
@@ -850,13 +849,11 @@ class RTCStatsReportVerifier {
     } else {
       verifier.TestMemberIsUndefined(inbound_stream.frames_per_second);
     }
-    verifier.TestMemberIsUndefined(inbound_stream.frame_bit_depth);
     verifier.TestMemberIsNonNegative<double>(
         inbound_stream.jitter_buffer_delay);
     verifier.TestMemberIsNonNegative<uint64_t>(
         inbound_stream.jitter_buffer_emitted_count);
-    if (inbound_stream.kind.is_defined() &&
-        *inbound_stream.media_type == "video") {
+    if (inbound_stream.kind.is_defined() && *inbound_stream.kind == "video") {
       verifier.TestMemberIsUndefined(inbound_stream.total_samples_received);
       verifier.TestMemberIsUndefined(inbound_stream.concealed_samples);
       verifier.TestMemberIsUndefined(inbound_stream.silent_concealed_samples);
@@ -865,6 +862,9 @@ class RTCStatsReportVerifier {
           inbound_stream.inserted_samples_for_deceleration);
       verifier.TestMemberIsUndefined(
           inbound_stream.removed_samples_for_acceleration);
+      verifier.TestMemberIsUndefined(inbound_stream.jitter_buffer_target_delay);
+      verifier.TestMemberIsUndefined(
+          inbound_stream.jitter_buffer_minimum_delay);
       verifier.TestMemberIsUndefined(inbound_stream.audio_level);
       verifier.TestMemberIsUndefined(inbound_stream.total_audio_energy);
       verifier.TestMemberIsUndefined(inbound_stream.total_samples_duration);
@@ -888,27 +888,20 @@ class RTCStatsReportVerifier {
           inbound_stream.inserted_samples_for_deceleration);
       verifier.TestMemberIsNonNegative<uint64_t>(
           inbound_stream.removed_samples_for_acceleration);
+      verifier.TestMemberIsNonNegative<double>(
+          inbound_stream.jitter_buffer_target_delay);
+      verifier.TestMemberIsNonNegative<double>(
+          inbound_stream.jitter_buffer_minimum_delay);
       verifier.TestMemberIsPositive<double>(inbound_stream.audio_level);
       verifier.TestMemberIsPositive<double>(inbound_stream.total_audio_energy);
       verifier.TestMemberIsPositive<double>(
           inbound_stream.total_samples_duration);
       verifier.TestMemberIsUndefined(inbound_stream.frames_received);
     }
-    verifier.TestMemberIsUndefined(inbound_stream.round_trip_time);
-    verifier.TestMemberIsUndefined(inbound_stream.packets_repaired);
-    verifier.TestMemberIsUndefined(inbound_stream.burst_packets_lost);
-    verifier.TestMemberIsUndefined(inbound_stream.burst_packets_discarded);
-    verifier.TestMemberIsUndefined(inbound_stream.burst_loss_count);
-    verifier.TestMemberIsUndefined(inbound_stream.burst_discard_count);
-    verifier.TestMemberIsUndefined(inbound_stream.burst_loss_rate);
-    verifier.TestMemberIsUndefined(inbound_stream.burst_discard_rate);
-    verifier.TestMemberIsUndefined(inbound_stream.gap_loss_rate);
-    verifier.TestMemberIsUndefined(inbound_stream.gap_discard_rate);
     // Test runtime too short to get an estimate (at least two RTCP sender
     // reports need to be received).
     verifier.MarkMemberTested(inbound_stream.estimated_playout_timestamp, true);
-    if (inbound_stream.kind.is_defined() &&
-        *inbound_stream.media_type == "video") {
+    if (inbound_stream.kind.is_defined() && *inbound_stream.kind == "video") {
       verifier.TestMemberIsDefined(inbound_stream.frames_decoded);
       verifier.TestMemberIsDefined(inbound_stream.key_frames_decoded);
       verifier.TestMemberIsNonNegative<uint32_t>(inbound_stream.frames_dropped);
@@ -924,9 +917,23 @@ class RTCStatsReportVerifier {
           inbound_stream.total_inter_frame_delay);
       verifier.TestMemberIsNonNegative<double>(
           inbound_stream.total_squared_inter_frame_delay);
+      verifier.TestMemberIsNonNegative<uint32_t>(inbound_stream.pause_count);
+      verifier.TestMemberIsNonNegative<double>(
+          inbound_stream.total_pauses_duration);
+      verifier.TestMemberIsNonNegative<uint32_t>(inbound_stream.freeze_count);
+      verifier.TestMemberIsNonNegative<double>(
+          inbound_stream.total_freezes_duration);
       // The integration test is not set up to test screen share; don't require
       // this to be present.
       verifier.MarkMemberTested(inbound_stream.content_type, true);
+      verifier.TestMemberIsUndefined(inbound_stream.jitter_buffer_flushes);
+      verifier.TestMemberIsUndefined(
+          inbound_stream.delayed_packet_outage_samples);
+      verifier.TestMemberIsUndefined(
+          inbound_stream.relative_packet_arrival_delay);
+      verifier.TestMemberIsUndefined(inbound_stream.interruption_count);
+      verifier.TestMemberIsUndefined(
+          inbound_stream.total_interruption_duration);
       verifier.TestMemberIsNonNegative<double>(
           inbound_stream.min_playout_delay);
     } else {
@@ -941,7 +948,21 @@ class RTCStatsReportVerifier {
       verifier.TestMemberIsUndefined(inbound_stream.total_inter_frame_delay);
       verifier.TestMemberIsUndefined(
           inbound_stream.total_squared_inter_frame_delay);
+      verifier.TestMemberIsUndefined(inbound_stream.pause_count);
+      verifier.TestMemberIsUndefined(inbound_stream.total_pauses_duration);
+      verifier.TestMemberIsUndefined(inbound_stream.freeze_count);
+      verifier.TestMemberIsUndefined(inbound_stream.total_freezes_duration);
       verifier.TestMemberIsUndefined(inbound_stream.content_type);
+      verifier.TestMemberIsNonNegative<uint64_t>(
+          inbound_stream.jitter_buffer_flushes);
+      verifier.TestMemberIsNonNegative<uint64_t>(
+          inbound_stream.delayed_packet_outage_samples);
+      verifier.TestMemberIsNonNegative<double>(
+          inbound_stream.relative_packet_arrival_delay);
+      verifier.TestMemberIsNonNegative<uint32_t>(
+          inbound_stream.interruption_count);
+      verifier.TestMemberIsNonNegative<double>(
+          inbound_stream.total_interruption_duration);
       verifier.TestMemberIsUndefined(inbound_stream.min_playout_delay);
     }
     return verifier.ExpectAllMembersSuccessfullyTested();
@@ -951,8 +972,9 @@ class RTCStatsReportVerifier {
       const RTCOutboundRTPStreamStats& outbound_stream) {
     RTCStatsVerifier verifier(report_.get(), &outbound_stream);
     VerifyRTCRTPStreamStats(outbound_stream, verifier);
-    if (outbound_stream.kind.is_defined() &&
-        *outbound_stream.media_type == "video") {
+    verifier.TestMemberIsDefined(outbound_stream.mid);
+    verifier.TestMemberIsDefined(outbound_stream.active);
+    if (outbound_stream.kind.is_defined() && *outbound_stream.kind == "video") {
       verifier.TestMemberIsIDReference(outbound_stream.media_source_id,
                                        RTCVideoSourceStats::kType);
       verifier.TestMemberIsNonNegative<uint32_t>(outbound_stream.fir_count);
@@ -980,8 +1002,8 @@ class RTCStatsReportVerifier {
         outbound_stream.header_bytes_sent);
     verifier.TestMemberIsNonNegative<uint64_t>(
         outbound_stream.retransmitted_bytes_sent);
-    if (outbound_stream.kind.is_defined() &&
-        *outbound_stream.media_type == "video") {
+    verifier.TestMemberIsNonNegative<double>(outbound_stream.target_bitrate);
+    if (outbound_stream.kind.is_defined() && *outbound_stream.kind == "video") {
       verifier.TestMemberIsDefined(outbound_stream.frames_encoded);
       verifier.TestMemberIsDefined(outbound_stream.key_frames_encoded);
       verifier.TestMemberIsNonNegative<double>(
@@ -1015,7 +1037,6 @@ class RTCStatsReportVerifier {
       verifier.TestMemberIsNonNegative<uint32_t>(outbound_stream.frames_sent);
       verifier.TestMemberIsNonNegative<uint32_t>(
           outbound_stream.huge_frames_sent);
-      verifier.TestMemberIsUndefined(outbound_stream.target_bitrate);
       verifier.MarkMemberTested(outbound_stream.rid, true);
     } else {
       verifier.TestMemberIsUndefined(outbound_stream.frames_encoded);
@@ -1039,30 +1060,22 @@ class RTCStatsReportVerifier {
       verifier.TestMemberIsUndefined(outbound_stream.frame_width);
       verifier.TestMemberIsUndefined(outbound_stream.frames_sent);
       verifier.TestMemberIsUndefined(outbound_stream.huge_frames_sent);
-      verifier.TestMemberIsNonNegative<double>(outbound_stream.target_bitrate);
     }
     return verifier.ExpectAllMembersSuccessfullyTested();
   }
 
   void VerifyRTCReceivedRtpStreamStats(
       const RTCReceivedRtpStreamStats& received_rtp,
-      RTCStatsVerifier& verifier,
-      bool packets_discarded_defined) {
+      RTCStatsVerifier& verifier) {
     VerifyRTCRTPStreamStats(received_rtp, verifier);
     verifier.TestMemberIsNonNegative<double>(received_rtp.jitter);
     verifier.TestMemberIsDefined(received_rtp.packets_lost);
-    if (packets_discarded_defined) {
-      verifier.TestMemberIsNonNegative<uint64_t>(
-          received_rtp.packets_discarded);
-    } else {
-      verifier.TestMemberIsUndefined(received_rtp.packets_discarded);
-    }
   }
 
   bool VerifyRTCRemoteInboundRtpStreamStats(
       const RTCRemoteInboundRtpStreamStats& remote_inbound_stream) {
     RTCStatsVerifier verifier(report_.get(), &remote_inbound_stream);
-    VerifyRTCReceivedRtpStreamStats(remote_inbound_stream, verifier, false);
+    VerifyRTCReceivedRtpStreamStats(remote_inbound_stream, verifier);
     verifier.TestMemberIsDefined(remote_inbound_stream.fraction_lost);
     verifier.TestMemberIsIDReference(remote_inbound_stream.local_id,
                                      RTCOutboundRTPStreamStats::kType);

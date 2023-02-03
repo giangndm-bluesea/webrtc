@@ -17,6 +17,7 @@
 #include "api/test/create_peer_connection_quality_test_frame_generator.h"
 #include "api/test/create_peerconnection_quality_test_fixture.h"
 #include "api/test/frame_generator_interface.h"
+#include "api/test/metrics/global_metrics_logger_and_exporter.h"
 #include "api/test/network_emulation_manager.h"
 #include "api/test/peerconnection_quality_test_fixture.h"
 #include "api/test/simulated_network.h"
@@ -32,6 +33,8 @@
 
 namespace webrtc {
 
+using EmulatedSFUConfig =
+    webrtc_pc_e2e::PeerConnectionE2EQualityTestFixture::EmulatedSFUConfig;
 using PeerConfigurer =
     webrtc_pc_e2e::PeerConnectionE2EQualityTestFixture::PeerConfigurer;
 using RunParams = webrtc_pc_e2e::PeerConnectionE2EQualityTestFixture::RunParams;
@@ -50,31 +53,6 @@ namespace {
 
 constexpr int kTestDurationSec = 45;
 
-EmulatedNetworkNode* CreateEmulatedNodeWithConfig(
-    NetworkEmulationManager* emulation,
-    const BuiltInNetworkBehaviorConfig& config) {
-  return emulation->CreateEmulatedNode(
-      std::make_unique<SimulatedNetwork>(config));
-}
-
-std::pair<EmulatedNetworkManagerInterface*, EmulatedNetworkManagerInterface*>
-CreateTwoNetworkLinks(NetworkEmulationManager* emulation,
-                      const BuiltInNetworkBehaviorConfig& config) {
-  auto* alice_node = CreateEmulatedNodeWithConfig(emulation, config);
-  auto* bob_node = CreateEmulatedNodeWithConfig(emulation, config);
-
-  auto* alice_endpoint = emulation->CreateEndpoint(EmulatedEndpointConfig());
-  auto* bob_endpoint = emulation->CreateEndpoint(EmulatedEndpointConfig());
-
-  emulation->CreateRoute(alice_endpoint, {alice_node}, bob_endpoint);
-  emulation->CreateRoute(bob_endpoint, {bob_node}, alice_endpoint);
-
-  return {
-      emulation->CreateEmulatedNetworkManagerInterface({alice_endpoint}),
-      emulation->CreateEmulatedNetworkManagerInterface({bob_endpoint}),
-  };
-}
-
 std::unique_ptr<webrtc_pc_e2e::PeerConnectionE2EQualityTestFixture>
 CreateTestFixture(const std::string& test_case_name,
                   TimeController& time_controller,
@@ -91,7 +69,8 @@ CreateTestFixture(const std::string& test_case_name,
                    bob_configurer);
   fixture->AddQualityMetricsReporter(
       std::make_unique<webrtc_pc_e2e::NetworkQualityMetricsReporter>(
-          network_links.first, network_links.second));
+          network_links.first, network_links.second,
+          test::GetGlobalMetricsLogger()));
   return fixture;
 }
 
@@ -113,8 +92,8 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Net_Delay_0_0_Plr_0_VP9) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_net_delay_0_0_plr_0_VP9",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -145,7 +124,7 @@ TEST(PCGenericDescriptorTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_VP9_generic_descriptor",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -182,8 +161,8 @@ TEST(PCFullStackTest, MAYBE_Pc_Generator_Net_Delay_0_0_Plr_0_VP9Profile2) {
   auto fixture = CreateTestFixture(
       "pc_generator_net_delay_0_0_plr_0_VP9Profile2",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -241,8 +220,8 @@ TEST(PCFullStackTest, Pc_Net_Delay_0_0_Plr_0) {
       CreateNetworkEmulationManager();
   auto fixture = CreateTestFixture(
       "pc_net_delay_0_0_plr_0", *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(176, 144, 30);
         video.stream_label = "alice-video";
@@ -261,8 +240,8 @@ TEST(PCGenericDescriptorTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_net_delay_0_0_plr_0_generic_descriptor",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -282,7 +261,7 @@ TEST(PCGenericDescriptorTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_30kbps_net_delay_0_0_plr_0_generic_descriptor",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 10);
         video.stream_label = "alice-video";
@@ -310,7 +289,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Link_150kbps_Net_Delay_0_0_Plr_0) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_link_150kbps_net_delay_0_0_plr_0",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -332,7 +311,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Link_130kbps_Delay100ms_Loss1_Ulpfec) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_link_130kbps_delay100ms_loss1_ulpfec",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -355,7 +334,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Link_50kbps_Delay100ms_Loss1_Ulpfec) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_link_50kbps_delay100ms_loss1_ulpfec",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -380,7 +359,7 @@ TEST(PCFullStackTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_link_150kbps_delay100ms_30pkts_queue_overshoot30",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -408,7 +387,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Link_250kbps_Delay100ms_10pkts_Loss1) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_link_250kbps_delay100ms_10pkts_loss1",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -431,7 +410,7 @@ TEST(PCGenericDescriptorTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_generic_descriptor",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -453,7 +432,7 @@ TEST(PCGenericDescriptorTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_ulpfec_generic_descriptor",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -475,7 +454,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Delay_50_0_Plr_5_Flexfec) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_flexfec",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -500,7 +479,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_500kbps_Delay_50_0_Plr_3_Flexfec) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_500kbps_delay_50_0_plr_3_flexfec",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -525,7 +504,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_500kbps_Delay_50_0_Plr_3_Ulpfec) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_500kbps_delay_50_0_plr_3_ulpfec",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -545,8 +524,8 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Net_Delay_0_0_Plr_0_H264) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_net_delay_0_0_plr_0_H264",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -568,7 +547,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_30kbps_Net_Delay_0_0_Plr_0_H264) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_30kbps_net_delay_0_0_plr_0_H264",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 10);
         video.stream_label = "alice-video";
@@ -599,7 +578,7 @@ TEST(PCGenericDescriptorTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_H264_generic_descriptor",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -626,7 +605,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Delay_50_0_Plr_5_H264_Sps_Pps_Idr) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_H264_sps_pps_idr",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -650,7 +629,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_Delay_50_0_Plr_5_H264_Flexfec) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_H264_flexfec",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -680,7 +659,7 @@ TEST(PCFullStackTest, DISABLED_Pc_Foreman_Cif_Delay_50_0_Plr_5_H264_Ulpfec) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_delay_50_0_plr_5_H264_ulpfec",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -707,7 +686,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_500kbps) {
   config.link_capacity_kbps = 500;
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_500kbps", *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -729,7 +708,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_500kbps_32pkts_Queue) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_500kbps_32pkts_queue",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -751,7 +730,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_500kbps_100ms) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_500kbps_100ms",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -774,7 +753,7 @@ TEST(PCGenericDescriptorTest,
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_500kbps_100ms_32pkts_queue_generic_descriptor",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -817,7 +796,7 @@ TEST(PCFullStackTest, Pc_Foreman_Cif_1000kbps_100ms_32pkts_Queue) {
   auto fixture = CreateTestFixture(
       "pc_foreman_cif_1000kbps_100ms_32pkts_queue",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(352, 288, 30);
         video.stream_label = "alice-video";
@@ -840,7 +819,7 @@ TEST(PCFullStackTest, Pc_Conference_Motion_Hd_2000kbps_100ms_32pkts_Queue) {
   auto fixture = CreateTestFixture(
       "pc_conference_motion_hd_2000kbps_100ms_32pkts_queue",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(1280, 720, 50);
         video.stream_label = "alice-video";
@@ -989,7 +968,7 @@ TEST(PCFullStackTest, Pc_Conference_Motion_Hd_2000kbps_100ms_32pkts_Queue_Vp9) {
   auto fixture = CreateTestFixture(
       "pc_conference_motion_hd_2000kbps_100ms_32pkts_queue_vp9",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(1280, 720, 50);
         video.stream_label = "alice-video";
@@ -1017,8 +996,8 @@ TEST(PCFullStackTest, Pc_Screenshare_Slides_No_Conference_Mode) {
   auto fixture = CreateTestFixture(
       "pc_screenshare_slides_no_conference_mode",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(1850, 1110, 5);
         video.stream_label = "alice-video";
@@ -1036,8 +1015,8 @@ TEST(PCFullStackTest, Pc_Screenshare_Slides) {
       CreateNetworkEmulationManager();
   auto fixture = CreateTestFixture(
       "pc_screenshare_slides", *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(1850, 1110, 5);
         video.stream_label = "alice-video";
@@ -1060,11 +1039,12 @@ TEST(PCFullStackTest, Pc_Screenshare_Slides_Simulcast_No_Conference_Mode) {
   auto fixture = CreateTestFixture(
       "pc_screenshare_slides_simulcast_no_conference_mode",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(1850, 1110, 30);
-        video.simulcast_config = VideoSimulcastConfig(2, 1);
+        video.simulcast_config = VideoSimulcastConfig(2);
+        video.emulated_sfu_config = EmulatedSFUConfig(1);
         video.temporal_layers_count = 2;
         video.stream_label = "alice-video";
         video.content_hint = VideoTrackInterface::ContentHint::kText;
@@ -1082,11 +1062,12 @@ TEST(PCFullStackTest, Pc_Screenshare_Slides_Simulcast) {
   auto fixture = CreateTestFixture(
       "pc_screenshare_slides_simulcast",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(1850, 1110, 30);
-        video.simulcast_config = VideoSimulcastConfig(2, 1);
+        video.simulcast_config = VideoSimulcastConfig(2);
+        video.emulated_sfu_config = EmulatedSFUConfig(1);
         video.temporal_layers_count = 2;
         video.stream_label = "alice-video";
         video.content_hint = VideoTrackInterface::ContentHint::kText;
@@ -1287,12 +1268,13 @@ TEST(PCFullStackTest, Pc_Screenshare_Slides_Vp9_3sl_High_Fps) {
   auto fixture = CreateTestFixture(
       "pc_screenshare_slides_vp9_3sl_high_fps",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(1850, 1110, 30);
         video.stream_label = "alice-video";
-        video.simulcast_config = VideoSimulcastConfig(3, 2);
+        video.simulcast_config = VideoSimulcastConfig(3);
+        video.emulated_sfu_config = EmulatedSFUConfig(2);
         video.content_hint = VideoTrackInterface::ContentHint::kText;
         auto frame_generator = CreateScreenShareFrameGenerator(
             video, ScreenShareConfig(TimeDelta::Seconds(10)));
@@ -1319,12 +1301,13 @@ TEST(PCFullStackTest, Pc_Vp9svc_3sl_High) {
       CreateNetworkEmulationManager();
   auto fixture = CreateTestFixture(
       "pc_vp9svc_3sl_high", *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(1280, 720, 30);
         video.stream_label = "alice-video";
-        video.simulcast_config = VideoSimulcastConfig(3, 2);
+        video.simulcast_config = VideoSimulcastConfig(3);
+        video.emulated_sfu_config = EmulatedSFUConfig(2);
         video.temporal_layers_count = 3;
         auto frame_generator = CreateFromYuvFileFrameGenerator(
             video, ClipNameToClipPath("ConferenceMotion_1280_720_50"));
@@ -1351,12 +1334,13 @@ TEST(PCFullStackTest, Pc_Vp9svc_3sl_Low) {
       CreateNetworkEmulationManager();
   auto fixture = CreateTestFixture(
       "pc_vp9svc_3sl_low", *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(),
-                            BuiltInNetworkBehaviorConfig()),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(
+          BuiltInNetworkBehaviorConfig()),
       [](PeerConfigurer* alice) {
         VideoConfig video(1280, 720, 30);
         video.stream_label = "alice-video";
-        video.simulcast_config = VideoSimulcastConfig(3, 0);
+        video.simulcast_config = VideoSimulcastConfig(3);
+        video.emulated_sfu_config = EmulatedSFUConfig(0);
         video.temporal_layers_count = 3;
         auto frame_generator = CreateFromYuvFileFrameGenerator(
             video, ClipNameToClipPath("ConferenceMotion_1280_720_50"));
@@ -1484,10 +1468,11 @@ TEST(PCFullStackTest, MAYBE_Pc_Simulcast_HD_High) {
   config.queue_delay_ms = 100;
   auto fixture = CreateTestFixture(
       "pc_simulcast_HD_high", *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(1920, 1080, 30);
-        video.simulcast_config = VideoSimulcastConfig(3, 2);
+        video.simulcast_config = VideoSimulcastConfig(3);
+        video.emulated_sfu_config = EmulatedSFUConfig(2);
         video.temporal_layers_count = 3;
         video.stream_label = "alice-video";
         alice->AddVideoConfig(std::move(video));
@@ -1505,10 +1490,11 @@ TEST(PCFullStackTest, Pc_Simulcast_Vp8_3sl_High) {
   auto fixture = CreateTestFixture(
       "pc_simulcast_vp8_3sl_high",
       *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(1280, 720, 30);
-        video.simulcast_config = VideoSimulcastConfig(3, 2);
+        video.simulcast_config = VideoSimulcastConfig(3);
+        video.emulated_sfu_config = EmulatedSFUConfig(2);
         video.stream_label = "alice-video";
         auto frame_generator = CreateFromYuvFileFrameGenerator(
             video, ClipNameToClipPath("ConferenceMotion_1280_720_50"));
@@ -1526,10 +1512,11 @@ TEST(PCFullStackTest, Pc_Simulcast_Vp8_3sl_Low) {
   config.queue_delay_ms = 100;
   auto fixture = CreateTestFixture(
       "pc_simulcast_vp8_3sl_low", *network_emulation_manager->time_controller(),
-      CreateTwoNetworkLinks(network_emulation_manager.get(), config),
+      network_emulation_manager->CreateEndpointPairWithTwoWayRoutes(config),
       [](PeerConfigurer* alice) {
         VideoConfig video(1280, 720, 30);
-        video.simulcast_config = VideoSimulcastConfig(3, 0);
+        video.simulcast_config = VideoSimulcastConfig(3);
+        video.emulated_sfu_config = EmulatedSFUConfig(0);
         video.stream_label = "alice-video";
         auto frame_generator = CreateFromYuvFileFrameGenerator(
             video, ClipNameToClipPath("ConferenceMotion_1280_720_50"));

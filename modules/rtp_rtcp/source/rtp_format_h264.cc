@@ -37,18 +37,13 @@ static const size_t kNalHeaderSize = 1;
 static const size_t kFuAHeaderSize = 2;
 static const size_t kLengthFieldSize = 2;
 
-// Bit masks for FU (A and B) indicators.
-enum NalDefs : uint8_t { kFBit = 0x80, kNriMask = 0x60, kTypeMask = 0x1F };
-
-// Bit masks for FU (A and B) headers.
-enum FuDefs : uint8_t { kSBit = 0x80, kEBit = 0x40, kRBit = 0x20 };
-
 }  // namespace
 
 RtpPacketizerH264::RtpPacketizerH264(rtc::ArrayView<const uint8_t> payload,
                                      PayloadSizeLimits limits,
-                                     H264PacketizationMode packetization_mode)
-    : limits_(limits), num_packets_left_(0) {
+                                     H264PacketizationMode packetization_mode,
+                                     bool end_of_frame)
+    : limits_(limits), num_packets_left_(0), end_of_frame_(end_of_frame) {
   // Guard against uninitialized memory in packetization_mode.
   RTC_CHECK(packetization_mode == H264PacketizationMode::NonInterleaved ||
             packetization_mode == H264PacketizationMode::SingleNalUnit);
@@ -253,7 +248,7 @@ bool RtpPacketizerH264::NextPacket(RtpPacketToSend* rtp_packet) {
   } else {
     NextFragmentPacket(rtp_packet);
   }
-  rtp_packet->SetMarker(packets_.empty());
+  rtp_packet->SetMarker(packets_.empty() && end_of_frame_);
   --num_packets_left_;
   return true;
 }
@@ -267,7 +262,8 @@ void RtpPacketizerH264::NextAggregatePacket(RtpPacketToSend* rtp_packet) {
   PacketUnit* packet = &packets_.front();
   RTC_CHECK(packet->first_fragment);
   // STAP-A NALU header.
-  buffer[0] = (packet->header & (kFBit | kNriMask)) | H264::NaluType::kStapA;
+  buffer[0] =
+      (packet->header & (kH264FBit | kH264NriMask)) | H264::NaluType::kStapA;
   size_t index = kNalHeaderSize;
   bool is_last_fragment = packet->last_fragment;
   while (packet->aggregated) {
@@ -296,13 +292,13 @@ void RtpPacketizerH264::NextFragmentPacket(RtpPacketToSend* rtp_packet) {
   // We do not send original NALU header, so it will be replaced by the
   // FU indicator header of the first packet.
   uint8_t fu_indicator =
-      (packet->header & (kFBit | kNriMask)) | H264::NaluType::kFuA;
+      (packet->header & (kH264FBit | kH264NriMask)) | H264::NaluType::kFuA;
   uint8_t fu_header = 0;
 
   // S | E | R | 5 bit type.
-  fu_header |= (packet->first_fragment ? kSBit : 0);
-  fu_header |= (packet->last_fragment ? kEBit : 0);
-  uint8_t type = packet->header & kTypeMask;
+  fu_header |= (packet->first_fragment ? kH264SBit : 0);
+  fu_header |= (packet->last_fragment ? kH264EBit : 0);
+  uint8_t type = packet->header & kH264TypeMask;
   fu_header |= type;
   rtc::ArrayView<const uint8_t> fragment = packet->source_fragment;
   uint8_t* buffer =

@@ -13,13 +13,15 @@
 #include <utility>
 
 #include "common_video/h264/h264_common.h"
+#ifdef WEBRTC_USE_H265
+#include "common_video/h265/h265_common.h"
+#endif
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "modules/video_coding/svc/scalable_video_controller_no_layering.h"
 #include "modules/video_coding/utility/vp8_header_parser.h"
 #include "modules/video_coding/utility/vp9_uncompressed_header_parser.h"
 #include "rtc_base/logging.h"
-#include "rtc_base/task_utils/to_queued_task.h"
 #include "rtc_base/time_utils.h"
 #include "sdk/android/generated_video_jni/VideoEncoderWrapper_jni.h"
 #include "sdk/android/generated_video_jni/VideoEncoder_jni.h"
@@ -351,6 +353,11 @@ int VideoEncoderWrapper::ParseQp(rtc::ArrayView<const uint8_t> buffer) {
       qp = h264_bitstream_parser_.GetLastSliceQp().value_or(-1);
       success = (qp >= 0);
       break;
+#ifdef WEBRTC_USE_H265
+    case kVideoCodecH265:
+      success = h265_bitstream_parser_.GetLastSliceQp(&qp);
+      break;
+#endif
     default:  // Default is to not provide QP.
       success = false;
       break;

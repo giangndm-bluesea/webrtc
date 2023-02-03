@@ -14,13 +14,16 @@
 #include <memory>
 #include <string>
 
+#include "absl/container/inlined_vector.h"
 #include "absl/types/optional.h"
 #include "api/video_codecs/sdp_video_format.h"
 #include "media/base/media_constants.h"
 #include "rtc_base/trace_event.h"
 
 #if defined(WEBRTC_USE_H264)
+#if defined (OWT_USE_FFMPEG)
 #include "modules/video_coding/codecs/h264/h264_decoder_impl.h"
+#endif
 #include "modules/video_coding/codecs/h264/h264_encoder_impl.h"
 #endif
 
@@ -51,15 +54,23 @@ constexpr ScalabilityMode kSupportedScalabilityModes[] = {
 
 SdpVideoFormat CreateH264Format(H264Profile profile,
                                 H264Level level,
-                                const std::string& packetization_mode) {
+                                const std::string& packetization_mode,
+                                bool add_scalability_modes) {
   const absl::optional<std::string> profile_string =
       H264ProfileLevelIdToString(H264ProfileLevelId(profile, level));
   RTC_CHECK(profile_string);
+  absl::InlinedVector<ScalabilityMode, kScalabilityModeCount> scalability_modes;
+  if (add_scalability_modes) {
+    for (const auto scalability_mode : kSupportedScalabilityModes) {
+      scalability_modes.push_back(scalability_mode);
+    }
+  }
   return SdpVideoFormat(
       cricket::kH264CodecName,
       {{cricket::kH264FmtpProfileLevelId, *profile_string},
        {cricket::kH264FmtpLevelAsymmetryAllowed, "1"},
-       {cricket::kH264FmtpPacketizationMode, packetization_mode}});
+       {cricket::kH264FmtpPacketizationMode, packetization_mode}},
+      scalability_modes);
 }
 
 void DisableRtcUseH264() {
@@ -68,7 +79,7 @@ void DisableRtcUseH264() {
 #endif
 }
 
-std::vector<SdpVideoFormat> SupportedH264Codecs() {
+std::vector<SdpVideoFormat> SupportedH264Codecs(bool add_scalability_modes) {
   TRACE_EVENT0("webrtc", __func__);
   if (!IsH264CodecSupported())
     return std::vector<SdpVideoFormat>();
@@ -81,17 +92,18 @@ std::vector<SdpVideoFormat> SupportedH264Codecs() {
   //
   // We support both packetization modes 0 (mandatory) and 1 (optional,
   // preferred).
-  return {
-      CreateH264Format(H264Profile::kProfileBaseline, H264Level::kLevel3_1,
-                       "1"),
-      CreateH264Format(H264Profile::kProfileBaseline, H264Level::kLevel3_1,
-                       "0"),
-      CreateH264Format(H264Profile::kProfileConstrainedBaseline,
-                       H264Level::kLevel3_1, "1"),
-      CreateH264Format(H264Profile::kProfileConstrainedBaseline,
-                       H264Level::kLevel3_1, "0"),
-      CreateH264Format(H264Profile::kProfileMain, H264Level::kLevel3_1, "1"),
-      CreateH264Format(H264Profile::kProfileMain, H264Level::kLevel3_1, "0")};
+  return {CreateH264Format(H264Profile::kProfileBaseline, H264Level::kLevel3_1,
+                           "1", add_scalability_modes),
+          CreateH264Format(H264Profile::kProfileBaseline, H264Level::kLevel3_1,
+                           "0", add_scalability_modes),
+          CreateH264Format(H264Profile::kProfileConstrainedBaseline,
+                           H264Level::kLevel3_1, "1", add_scalability_modes),
+          CreateH264Format(H264Profile::kProfileConstrainedBaseline,
+                           H264Level::kLevel3_1, "0", add_scalability_modes),
+          CreateH264Format(H264Profile::kProfileMain, H264Level::kLevel3_1, "1",
+                           add_scalability_modes),
+          CreateH264Format(H264Profile::kProfileMain, H264Level::kLevel3_1, "0",
+                           add_scalability_modes)};
 }
 
 std::vector<SdpVideoFormat> SupportedH264DecoderCodecs() {
@@ -142,7 +154,12 @@ std::unique_ptr<H264Decoder> H264Decoder::Create() {
 #if defined(WEBRTC_USE_H264)
   RTC_CHECK(g_rtc_use_h264);
   RTC_LOG(LS_INFO) << "Creating H264DecoderImpl.";
+#if defined(OWT_USE_FFMPEG)
   return std::make_unique<H264DecoderImpl>();
+#else
+  RTC_DCHECK_NOTREACHED();
+  return nullptr;
+#endif
 #else
   RTC_DCHECK_NOTREACHED();
   return nullptr;

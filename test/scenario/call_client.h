@@ -50,7 +50,7 @@ class NetworkControleUpdateCache : public NetworkControllerInterface {
       TargetRateConstraints msg) override;
   NetworkControlUpdate OnTransportLossReport(TransportLossReport msg) override;
   NetworkControlUpdate OnTransportPacketsFeedback(
-      TransportPacketsFeedback msg) override;
+      TransportPacketsFeedback msg, int64_t current_offset_ms) override;
   NetworkControlUpdate OnNetworkStateEstimate(
       NetworkStateEstimate msg) override;
 
@@ -165,8 +165,6 @@ class CallClient : public EmulatedNetworkReceiverInterface {
   std::map<uint32_t, MediaType> ssrc_media_types_;
   // Defined last so it's destroyed first.
   TaskQueueForTest task_queue_;
-
-  rtc::scoped_refptr<SharedModuleThread> module_thread_;
 
   const FieldTrialBasedConfig field_trials_;
 };

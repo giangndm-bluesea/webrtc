@@ -16,6 +16,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/string_view.h"
 #include "api/crypto/crypto_options.h"
 #include "api/dtls_transport_interface.h"
 #include "p2p/base/dtls_transport_internal.h"
@@ -136,13 +137,28 @@ class FakeDtlsTransport : public DtlsTransportInternal {
   // Fake DtlsTransportInternal implementation.
   webrtc::DtlsTransportState dtls_state() const override { return dtls_state_; }
   const std::string& transport_name() const override { return transport_name_; }
+  // Always return audio to minimize changes to upstream. No case tests this
+  // property.
+  cricket::MediaType media_type() const override {
+    return cricket::MediaType::MEDIA_TYPE_AUDIO;
+  }
   int component() const override { return component_; }
   const rtc::SSLFingerprint& dtls_fingerprint() const {
     return dtls_fingerprint_;
   }
-  bool SetRemoteFingerprint(const std::string& alg,
+  webrtc::RTCError SetRemoteParameters(absl::string_view alg,
+                                       const uint8_t* digest,
+                                       size_t digest_len,
+                                       absl::optional<rtc::SSLRole> role) {
+    if (role) {
+      SetDtlsRole(*role);
+    }
+    SetRemoteFingerprint(alg, digest, digest_len);
+    return webrtc::RTCError::OK();
+  }
+  bool SetRemoteFingerprint(absl::string_view alg,
                             const uint8_t* digest,
-                            size_t digest_len) override {
+                            size_t digest_len) {
     dtls_fingerprint_ =
         rtc::SSLFingerprint(alg, rtc::MakeArrayView(digest, digest_len));
     return true;
@@ -203,7 +219,7 @@ class FakeDtlsTransport : public DtlsTransportInternal {
     }
     return std::make_unique<rtc::SSLCertChain>(remote_cert_->Clone());
   }
-  bool ExportKeyingMaterial(const std::string& label,
+  bool ExportKeyingMaterial(absl::string_view label,
                             const uint8_t* context,
                             size_t context_len,
                             bool use_context,

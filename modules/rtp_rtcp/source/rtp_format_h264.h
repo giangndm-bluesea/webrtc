@@ -26,13 +26,24 @@
 
 namespace webrtc {
 
+// Bit masks for NAL (F, NRI, Type) indicators.
+constexpr uint8_t kH264FBit = 0x80;
+constexpr uint8_t kH264NriMask = 0x60;
+constexpr uint8_t kH264TypeMask = 0x1F;
+
+// Bit masks for FU (A and B) headers.
+constexpr uint8_t kH264SBit = 0x80;
+constexpr uint8_t kH264EBit = 0x40;
+constexpr uint8_t kH264RBit = 0x20;
+
 class RtpPacketizerH264 : public RtpPacketizer {
  public:
   // Initialize with payload from encoder.
   // The payload_data must be exactly one encoded H264 frame.
   RtpPacketizerH264(rtc::ArrayView<const uint8_t> payload,
                     PayloadSizeLimits limits,
-                    H264PacketizationMode packetization_mode);
+                    H264PacketizationMode packetization_mode,
+                    bool end_of_frame = true);
 
   ~RtpPacketizerH264() override;
 
@@ -84,6 +95,7 @@ class RtpPacketizerH264 : public RtpPacketizer {
   size_t num_packets_left_;
   std::deque<rtc::ArrayView<const uint8_t>> input_fragments_;
   std::queue<PacketUnit> packets_;
+  bool end_of_frame_ = true;
 };
 }  // namespace webrtc
 #endif  // MODULES_RTP_RTCP_SOURCE_RTP_FORMAT_H264_H_

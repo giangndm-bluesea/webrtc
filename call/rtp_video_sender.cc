@@ -28,7 +28,6 @@
 #include "modules/rtp_rtcp/source/rtp_sender.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "rtc_base/checks.h"
-#include "rtc_base/location.h"
 #include "rtc_base/logging.h"
 #include "rtc_base/task_queue.h"
 #include "rtc_base/trace_event.h"
@@ -511,7 +510,7 @@ void RtpVideoSender::SetActiveModulesLocked(
     }
 
     RtpRtcpInterface& rtp_module = *rtp_streams_[i].rtp_rtcp;
-    const bool was_active = rtp_module.SendingMedia();
+    const bool was_active = rtp_module.Sending();
     const bool should_be_active = active_modules[i];
 
     // Sends a kRtcpByeCode when going from true to false.
@@ -608,12 +607,19 @@ EncodedImageCallback::Result RtpVideoSender::OnEncodedImage(
       sender_video.SetVideoStructure(nullptr);
     }
   }
-
+  RTPVideoHeader rtp_video_header = params_[stream_index].GetRtpVideoHeader(
+      encoded_image, codec_specific_info, shared_frame_id_);
+  if (codec_specific_info->codecType == kVideoCodecH264 &&
+      codec_specific_info->codecSpecific.H264.last_fragment_in_frame)
+    absl::get<RTPVideoHeaderH264>(rtp_video_header.video_type_header)
+        .has_last_fragement = true;
+  else if (codec_specific_info->codecType == kVideoCodecH265 &&
+           codec_specific_info->codecSpecific.H265.last_fragment_in_frame)
+    absl::get<RTPVideoHeaderH265>(rtp_video_header.video_type_header)
+        .has_last_fragement = true;
   bool send_result = rtp_streams_[stream_index].sender_video->SendEncodedImage(
       rtp_config_.payload_type, codec_type_, rtp_timestamp, encoded_image,
-      params_[stream_index].GetRtpVideoHeader(
-          encoded_image, codec_specific_info, shared_frame_id_),
-      expected_retransmission_time_ms);
+      rtp_video_header, expected_retransmission_time_ms);
   if (frame_count_observer_) {
     FrameCounts& counts = frame_counts_[stream_index];
     if (encoded_image._frameType == VideoFrameType::kVideoFrameKey) {
@@ -669,6 +675,14 @@ void RtpVideoSender::OnVideoLayersAllocationUpdated(
       stream_allocation.rtp_stream_index = i;
       rtp_streams_[i].sender_video->SetVideoLayersAllocation(
           std::move(stream_allocation));
+      // Only send video frames on the rtp module if the encoder is configured
+      // to send. This is to prevent stray frames to be sent after an encoder
+      // has been reconfigured.
+      rtp_streams_[i].rtp_rtcp->SetSendingMediaStatus(
+          absl::c_any_of(allocation.active_spatial_layers,
+                         [&i](const VideoLayersAllocation::SpatialLayer layer) {
+                           return layer.rtp_stream_index == static_cast<int>(i);
+                         }));
     }
   }
 }

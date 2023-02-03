@@ -17,10 +17,6 @@
 // #ifdef unless needed and tested.
 #ifdef WEBRTC_USE_H264
 
-#if defined(WEBRTC_WIN) && !defined(__clang__)
-#error "See: bugs.webrtc.org/9213#c13."
-#endif
-
 #include <memory>
 
 #include "modules/video_coding/codecs/h264/include/h264.h"
@@ -91,8 +87,6 @@ class H264DecoderImpl : public H264Decoder {
 
   // Used by ffmpeg via `AVGetBuffer2()` to allocate I420 images.
   VideoFrameBufferPool ffmpeg_buffer_pool_;
-  // Used to allocate NV12 images if NV12 output is preferred.
-  VideoFrameBufferPool output_buffer_pool_;
   std::unique_ptr<AVCodecContext, AVCodecContextDeleter> av_context_;
   std::unique_ptr<AVFrame, AVFrameDeleter> av_frame_;
 
@@ -102,9 +96,6 @@ class H264DecoderImpl : public H264Decoder {
   bool has_reported_error_;
 
   webrtc::H264BitstreamParser h264_bitstream_parser_;
-
-  // Decoder should produce this format if possible.
-  const VideoFrameBuffer::Type preferred_output_format_;
 };
 
 }  // namespace webrtc

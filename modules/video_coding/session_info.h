@@ -49,7 +49,6 @@ class VCMSessionInfo {
   // Returns the number of bytes deleted from the session.
   size_t MakeDecodable();
 
-  // TODO(nisse): Used by tests only.
   size_t SessionLength() const;
   int NumPackets() const;
   bool HaveFirstPacket() const;
@@ -65,6 +64,9 @@ class VCMSessionInfo {
   int Tl0PicId() const;
 
   std::vector<NaluInfo> GetNaluInfos() const;
+#ifdef WEBRTC_USE_H265
+  std::vector<H265NaluInfo> GetH265NaluInfos() const;
+#endif
 
   void SetGofInfo(const GofInfoVP9& gof_info, size_t idx);
 

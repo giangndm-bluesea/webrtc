@@ -24,6 +24,7 @@
 #include "api/audio_codecs/audio_codec_pair_id.h"
 #include "api/call/audio_sink.h"
 #include "api/field_trials_view.h"
+#include "api/task_queue/pending_task_safety_flag.h"
 #include "media/base/audio_source.h"
 #include "media/base/media_constants.h"
 #include "media/base/stream_params.h"
@@ -48,11 +49,10 @@
 #include "rtc_base/strings/audio_format_to_string.h"
 #include "rtc_base/strings/string_builder.h"
 #include "rtc_base/strings/string_format.h"
-#include "rtc_base/task_utils/pending_task_safety_flag.h"
-#include "rtc_base/task_utils/to_queued_task.h"
 #include "rtc_base/third_party/base64/base64.h"
 #include "rtc_base/trace_event.h"
 #include "system_wrappers/include/metrics.h"
+#include "system_wrappers/include/field_trial.h"
 
 #if WEBRTC_ENABLE_PROTOBUF
 RTC_PUSH_IGNORING_WUNDEF()
@@ -398,8 +398,14 @@ void WebRtcVoiceEngine::Init() {
     options.audio_jitter_buffer_max_packets = 200;
     options.audio_jitter_buffer_fast_accelerate = false;
     options.audio_jitter_buffer_min_delay_ms = 0;
-    bool error = ApplyOptions(options);
-    RTC_DCHECK(error);
+    // Overrided for low latency mode
+    if (webrtc::field_trial::IsEnabled("OWT-LowLatencyMode")) {
+      options.echo_cancellation = false;
+      options.auto_gain_control = false;
+      options.noise_suppression = false;
+      options.highpass_filter = false;
+    }
+    ApplyOptions(options);
   }
   initialized_ = true;
 }
@@ -420,7 +426,7 @@ VoiceMediaChannel* WebRtcVoiceEngine::CreateMediaChannel(
                                      call);
 }
 
-bool WebRtcVoiceEngine::ApplyOptions(const AudioOptions& options_in) {
+void WebRtcVoiceEngine::ApplyOptions(const AudioOptions& options_in) {
   RTC_DCHECK_RUN_ON(&worker_thread_checker_);
   RTC_LOG(LS_INFO) << "WebRtcVoiceEngine::ApplyOptions: "
                    << options_in.ToString();
@@ -452,7 +458,6 @@ bool WebRtcVoiceEngine::ApplyOptions(const AudioOptions& options_in) {
   // On iOS, VPIO provides built-in AGC.
   options.auto_gain_control = false;
   RTC_LOG(LS_INFO) << "Always disable AGC on iOS. Use built-in instead.";
-#elif defined(WEBRTC_ANDROID)
 #endif
 
 #if defined(WEBRTC_IOS) || defined(WEBRTC_ANDROID)
@@ -523,35 +528,25 @@ bool WebRtcVoiceEngine::ApplyOptions(const AudioOptions& options_in) {
   }
 
   if (options.stereo_swapping) {
-    RTC_LOG(LS_INFO) << "Stereo swapping enabled? " << *options.stereo_swapping;
     audio_state()->SetStereoChannelSwapping(*options.stereo_swapping);
   }
 
   if (options.audio_jitter_buffer_max_packets) {
-    RTC_LOG(LS_INFO) << "NetEq capacity is "
-                     << *options.audio_jitter_buffer_max_packets;
     audio_jitter_buffer_max_packets_ =
         std::max(20, *options.audio_jitter_buffer_max_packets);
   }
   if (options.audio_jitter_buffer_fast_accelerate) {
-    RTC_LOG(LS_INFO) << "NetEq fast mode? "
-                     << *options.audio_jitter_buffer_fast_accelerate;
     audio_jitter_buffer_fast_accelerate_ =
         *options.audio_jitter_buffer_fast_accelerate;
   }
   if (options.audio_jitter_buffer_min_delay_ms) {
-    RTC_LOG(LS_INFO) << "NetEq minimum delay is "
-                     << *options.audio_jitter_buffer_min_delay_ms;
     audio_jitter_buffer_min_delay_ms_ =
         *options.audio_jitter_buffer_min_delay_ms;
   }
 
   webrtc::AudioProcessing* ap = apm();
   if (!ap) {
-    RTC_LOG(LS_INFO)
-        << "No audio processing module present. No software-provided effects "
-           "(AEC, NS, AGC, ...) are activated";
-    return true;
+    return;
   }
 
   webrtc::AudioProcessing::Config apm_config = ap->GetConfig();
@@ -582,11 +577,9 @@ bool WebRtcVoiceEngine::ApplyOptions(const AudioOptions& options_in) {
     apm_config.noise_suppression.enabled = enabled;
     apm_config.noise_suppression.level =
         webrtc::AudioProcessing::Config::NoiseSuppression::Level::kHigh;
-    RTC_LOG(LS_INFO) << "NS set to " << enabled;
   }
 
   ap->ApplyConfig(apm_config);
-  return true;
 }
 
 const std::vector<AudioCodec>& WebRtcVoiceEngine::send_codecs() const {
@@ -607,7 +600,8 @@ WebRtcVoiceEngine::GetRtpHeaderExtensions() const {
   for (const auto& uri : {webrtc::RtpExtension::kAudioLevelUri,
                           webrtc::RtpExtension::kAbsSendTimeUri,
                           webrtc::RtpExtension::kTransportSequenceNumberUri,
-                          webrtc::RtpExtension::kMidUri}) {
+        webrtc::RtpExtension::kRepairedRidUri,
+        webrtc::RtpExtension::kPictureIdUri}) {
     result.emplace_back(uri, id++, webrtc::RtpTransceiverDirection::kSendRecv);
   }
   return result;
@@ -938,6 +932,8 @@ class WebRtcVoiceMediaChannel::WebRtcAudioSendStream
               size_t number_of_channels,
               size_t number_of_frames,
               absl::optional<int64_t> absolute_capture_timestamp_ms) override {
+    TRACE_EVENT_BEGIN2("webrtc", "WebRtcAudioSendStream::OnData", "sample_rate",
+                       sample_rate, "number_of_frames", number_of_frames);
     RTC_DCHECK_EQ(16, bits_per_sample);
     RTC_CHECK_RUNS_SERIALIZED(&audio_capture_race_checker_);
     RTC_DCHECK(stream_);
@@ -953,6 +949,8 @@ class WebRtcVoiceMediaChannel::WebRtcAudioSendStream
           *absolute_capture_timestamp_ms);
     }
     stream_->SendAudioData(std::move(audio_frame));
+    TRACE_EVENT_END1("webrtc", "WebRtcAudioSendStream::OnData",
+                     "number_of_channels", number_of_channels);
   }
 
   // Callback from the `source_` when it is going away. In case Start() has
@@ -1500,11 +1498,7 @@ bool WebRtcVoiceMediaChannel::SetOptions(const AudioOptions& options) {
   // on top.  This means there is no way to "clear" options such that
   // they go back to the engine default.
   options_.SetAll(options);
-  if (!engine()->ApplyOptions(options_)) {
-    RTC_LOG(LS_WARNING)
-        << "Failed to apply engine options during channel SetOptions.";
-    return false;
-  }
+  engine()->ApplyOptions(options_);
 
   absl::optional<std::string> audio_network_adaptor_config =
       GetAudioNetworkAdaptorConfig(options_);
@@ -2152,8 +2146,8 @@ void WebRtcVoiceMediaChannel::OnPacketReceived(rtc::CopyOnWriteBuffer packet,
   // consistency it would be good to move the interaction with call_->Receiver()
   // to a common implementation and provide a callback on the worker thread
   // for the exception case (DELIVERY_UNKNOWN_SSRC) and how retry is attempted.
-  worker_thread_->PostTask(ToQueuedTask(task_safety_, [this, packet,
-                                                       packet_time_us] {
+  worker_thread_->PostTask(SafeTask(task_safety_.flag(), [this, packet,
+                                                          packet_time_us] {
     RTC_DCHECK_RUN_ON(worker_thread_);
 
     webrtc::PacketReceiver::DeliveryStatus delivery_result =
@@ -2232,8 +2226,8 @@ void WebRtcVoiceMediaChannel::OnNetworkRouteChanged(
 
   call_->OnAudioTransportOverheadChanged(network_route.packet_overhead);
 
-  worker_thread_->PostTask(ToQueuedTask(
-      task_safety_,
+  worker_thread_->PostTask(SafeTask(
+      task_safety_.flag(),
       [this, name = std::string(transport_name), route = network_route] {
         RTC_DCHECK_RUN_ON(worker_thread_);
         call_->GetTransportControllerSend()->OnNetworkRouteChanged(name, route);
@@ -2321,6 +2315,12 @@ bool WebRtcVoiceMediaChannel::GetStats(VoiceMediaInfo* info,
     sinfo.ana_statistics = stats.ana_statistics;
     sinfo.apm_statistics = stats.apm_statistics;
     sinfo.report_block_datas = std::move(stats.report_block_datas);
+
+    auto encodings = stream.second->rtp_parameters().encodings;
+    if (!encodings.empty()) {
+      sinfo.active = encodings[0].active;
+    }
+
     info->senders.push_back(sinfo);
   }
 
@@ -2372,6 +2372,8 @@ bool WebRtcVoiceMediaChannel::GetStats(VoiceMediaInfo* info,
     rinfo.jitter_buffer_emitted_count = stats.jitter_buffer_emitted_count;
     rinfo.jitter_buffer_target_delay_seconds =
         stats.jitter_buffer_target_delay_seconds;
+    rinfo.jitter_buffer_minimum_delay_seconds =
+        stats.jitter_buffer_minimum_delay_seconds;
     rinfo.inserted_samples_for_deceleration =
         stats.inserted_samples_for_deceleration;
     rinfo.removed_samples_for_acceleration =

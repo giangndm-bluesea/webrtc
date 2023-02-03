@@ -48,7 +48,7 @@ class LossBasedBweV2 {
 
   void SetAcknowledgedBitrate(DataRate acknowledged_bitrate);
   void SetBandwidthEstimate(DataRate bandwidth_estimate);
-
+  void SetMinBitrate(DataRate min_bitrate);
   void UpdateBandwidthEstimate(
       rtc::ArrayView<const PacketResult> packet_results,
       DataRate delay_based_estimate,
@@ -68,6 +68,8 @@ class LossBasedBweV2 {
     double higher_bandwidth_bias_factor = 0.0;
     double higher_log_bandwidth_bias_factor = 0.0;
     double inherent_loss_lower_bound = 0.0;
+    double loss_threshold_of_high_bandwidth_preference = 0.0;
+    double bandwidth_preference_smoothing_factor = 0.0;
     DataRate inherent_loss_upper_bound_bandwidth_balance =
         DataRate::MinusInfinity();
     double inherent_loss_upper_bound_offset = 0.0;
@@ -89,6 +91,10 @@ class LossBasedBweV2 {
     double max_increase_factor = 0.0;
     TimeDelta delayed_increase_window = TimeDelta::Zero();
     bool use_acked_bitrate_only_when_overusing = false;
+    bool not_increase_if_inherent_loss_less_than_average_loss = false;
+    double high_loss_rate_threshold = 1.0;
+    DataRate bandwidth_cap_at_high_loss_rate = DataRate::MinusInfinity();
+    double slope_of_bwe_high_loss_func = 1000.0;
   };
 
   struct Derivatives {
@@ -125,6 +131,7 @@ class LossBasedBweV2 {
   double GetFeasibleInherentLoss(
       const ChannelParameters& channel_parameters) const;
   double GetInherentLossUpperBound(DataRate bandwidth) const;
+  double AdjustBiasFactor(double loss_rate, double bias_factor) const;
   double GetHighBandwidthBias(DataRate bandwidth) const;
   double GetObjective(const ChannelParameters& channel_parameters) const;
   DataRate GetSendingRate(DataRate instantaneous_sending_rate) const;
@@ -164,6 +171,7 @@ class LossBasedBweV2 {
   Timestamp recovering_after_loss_timestamp_ = Timestamp::MinusInfinity();
   DataRate bandwidth_limit_in_current_window_ = DataRate::PlusInfinity();
   bool limited_due_to_loss_candidate_ = false;
+  DataRate min_bitrate_ = DataRate::KilobitsPerSec(1);
 };
 
 }  // namespace webrtc
