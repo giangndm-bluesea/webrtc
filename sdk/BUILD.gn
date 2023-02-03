@@ -791,14 +791,6 @@ if (is_ios || is_mac) {
       ]
 
       defines = []
-      if (enable_libaom) {
-        defines += [ "RTC_USE_LIBAOM_AV1_ENCODER" ]
-        deps += [ ":libaom_av1_encoder" ]
-      }
-
-      if (rtc_include_dav1d_in_internal_decoder_factory) {
-        deps += [ ":dav1d_decoder" ]
-      }
     }
 
     rtc_library("vpx_codec_constants") {
@@ -846,22 +838,6 @@ if (is_ios || is_mac) {
         ":wrapped_native_codec_objc",
         "../media:rtc_media_base",
         "../modules/video_coding:webrtc_vp9",
-      ]
-    }
-
-    rtc_library("dav1d_decoder") {
-      visibility = [ "*" ]
-      allow_poison = [ "software_video_codecs" ]
-      sources = [
-        "objc/api/video_codec/RTCVideoDecoderAV1.h",
-        "objc/api/video_codec/RTCVideoDecoderAV1.mm",
-      ]
-
-      deps = [
-        ":base_objc",
-        ":wrapped_native_codec_objc",
-        "../media:rtc_media_base",
-        "../modules/video_coding/codecs/av1:dav1d_decoder",
       ]
     }
 
@@ -1403,10 +1379,8 @@ if (is_ios || is_mac) {
           "objc/api/video_codec/RTCVideoCodecConstants.h",
           "objc/api/video_codec/RTCVideoDecoderVP8.h",
           "objc/api/video_codec/RTCVideoDecoderVP9.h",
-          "objc/api/video_codec/RTCVideoDecoderAV1.h",
           "objc/api/video_codec/RTCVideoEncoderVP8.h",
           "objc/api/video_codec/RTCVideoEncoderVP9.h",
-          "objc/api/video_codec/RTCVideoEncoderAV1.h",
           "objc/api/video_frame_buffer/RTCNativeI420Buffer.h",
           "objc/api/video_frame_buffer/RTCNativeMutableI420Buffer.h",
           # Added for Simulcast support
@@ -1529,10 +1503,8 @@ if (is_ios || is_mac) {
           "objc/api/peerconnection/RTCTracing.h",
           "objc/api/peerconnection/RTCVideoSource.h",
           "objc/api/peerconnection/RTCVideoTrack.h",
-          "objc/api/video_codec/RTCVideoDecoderAV1.h",
           "objc/api/video_codec/RTCVideoDecoderVP8.h",
           "objc/api/video_codec/RTCVideoDecoderVP9.h",
-          "objc/api/video_codec/RTCVideoEncoderAV1.h",
           "objc/api/video_codec/RTCVideoEncoderVP8.h",
           "objc/api/video_codec/RTCVideoEncoderVP9.h",
           "objc/api/video_frame_buffer/RTCNativeI420Buffer.h",
