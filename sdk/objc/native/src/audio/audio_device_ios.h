@@ -267,9 +267,6 @@ class AudioDeviceIOS : public AudioDeviceGeneric,
   // Set to 1 when recording is active and 0 otherwise.
   std::atomic<int> recording_;
 
-  // Set to 1 when playout is initialized and 0 otherwise.
-  volatile int playout_is_initialized_;
-
   // Set to 1 when playout is active and 0 otherwise.
   std::atomic<int> playing_;
 
