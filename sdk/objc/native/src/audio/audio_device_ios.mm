@@ -96,9 +96,9 @@ AudioDeviceIOS::AudioDeviceIOS(bool bypass_voice_processing)
       audio_unit_(nullptr),
       recording_is_initialized_(0),
       recording_(0),
-      playout_is_initialized_(0),
       playing_(0),
       initialized_(false),
+      audio_is_initialized_(false),
       is_interrupted_(false),
       has_configured_session_(false),
       num_detected_playout_glitches_(0),
@@ -186,7 +186,7 @@ int32_t AudioDeviceIOS::InitPlayout() {
     }
   }
 
-  rtc::AtomicOps::ReleaseStore(&playout_is_initialized_, 1);
+  audio_is_initialized_ = true;
 
   return 0;
 }
@@ -311,8 +311,8 @@ int32_t AudioDeviceIOS::StopRecording() {
   if (!playing_.load()) {
     ShutdownPlayOrRecord();
 
-    rtc::AtomicOps::ReleaseStore(&playout_is_initialized_, 0);
-  } else if (playout_is_initialized_) {
+    audio_is_initialized_ = false;
+  } else if (audio_is_initialized_) {
     // restart audio unit with no input
     RestartAudioUnit(false);
   }
@@ -779,7 +779,7 @@ void AudioDeviceIOS::UpdateAudioUnit(bool can_play_or_record) {
 
   // If we're not initialized we don't need to do anything. Audio unit will
   // be initialized on initialization.
-  if (!playout_is_initialized_ && !recording_is_initialized_) return;
+  if (!audio_is_initialized_ && !recording_is_initialized_) return;
 
   // If we're initialized, we must have an audio unit.
   RTC_DCHECK(audio_unit_);

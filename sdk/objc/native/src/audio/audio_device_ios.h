@@ -279,6 +279,10 @@ class AudioDeviceIOS : public AudioDeviceGeneric,
   // Set to true after successful call to Init(), false otherwise.
   bool initialized_ RTC_GUARDED_BY(thread_);
 
+  // Set to true after successful call to InitRecording() or InitPlayout(),
+  // false otherwise.
+  bool audio_is_initialized_;
+
   // Set to true if audio session is interrupted, false otherwise.
   bool is_interrupted_;
 
