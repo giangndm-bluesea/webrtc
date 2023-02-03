@@ -134,6 +134,11 @@ class ObjCAudioDeviceModule : public AudioDeviceModule {
   int GetRecordAudioParameters(AudioParameters* params) const override;
 #endif  // WEBRTC_IOS
 
+  int32_t SetAudioDeviceSink(AudioDeviceSink* sink) const override {
+    // no-op
+    return 0;
+  }
+
  public:
   OSStatus OnDeliverRecordedData(AudioUnitRenderActionFlags* flags,
                                  const AudioTimeStamp* time_stamp,
