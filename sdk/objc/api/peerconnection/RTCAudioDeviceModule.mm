@@ -57,7 +57,7 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
   _sink = new AudioDeviceSink();
 
-  _workerThread->BlockingCall<void>([&] {
+  _workerThread->BlockingCall([&] {
     _native->SetAudioDeviceSink(_sink);
   });
 
@@ -80,7 +80,7 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)setOutputDevice: (nullable RTCAudioDevice *)device {
 
-  return _workerThread->BlockingCall<BOOL>([&] {
+  return _workerThread->BlockingCall([&] {
 
     NSUInteger index = 0;
     NSArray *devices = [self _outputDevices];
@@ -113,7 +113,7 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)setInputDevice: (nullable RTCAudioDevice *)device {
 
-  return _workerThread->BlockingCall<BOOL>([&] {
+  return _workerThread->BlockingCall([&] {
 
     NSUInteger index = 0;
     NSArray *devices = [self _inputDevices];
@@ -146,14 +146,14 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)playing {
 
-  return _workerThread->BlockingCall<BOOL>([&] {
+  return _workerThread->BlockingCall([&] {
     return _native->Playing();
   });
 }
 
 - (BOOL)recording {
 
-  return _workerThread->BlockingCall<BOOL>([&] {
+  return _workerThread->BlockingCall([&] {
     return _native->Recording();
   });
 }
@@ -162,42 +162,42 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)startPlayout {
 
-  return _workerThread->BlockingCall<BOOL>([&] {
+  return _workerThread->BlockingCall([&] {
     return _native->StartPlayout() == 0;
   });
 }
 
 - (BOOL)stopPlayout {
 
-  return _workerThread->BlockingCall<BOOL>([&]) {
+  return _workerThread->BlockingCall([&]) {
     return _native->StopPlayout() == 0;
   });
 }
 
 - (BOOL)initPlayout {
 
-  return _workerThread->BlockingCall<BOOL>([&]) {
+  return _workerThread->BlockingCall([&]) {
     return _native->InitPlayout() == 0;
   });
 }
 
 - (BOOL)startRecording {
 
-  return _workerThread->BlockingCall<BOOL>([&]) {
+  return _workerThread->BlockingCall([&]) {
     return _native->StartRecording() == 0;
   });
 }
 
 - (BOOL)stopRecording {
 
-  return _workerThread->BlockingCall<BOOL>([&]) {
+  return _workerThread->BlockingCall([&]) {
     return _native->StopRecording() == 0;
   });
 }
 
 - (BOOL)initRecording {
 
-  return _workerThread->BlockingCall<BOOL>([&]) {
+  return _workerThread->BlockingCall([&]) {
     return _native->InitRecording() == 0;
   });
 }
