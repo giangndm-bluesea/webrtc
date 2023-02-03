@@ -74,7 +74,7 @@
                                             RTCVideoEncoderFactoryH264) alloc] init])
               nativeVideoDecoderFactory:webrtc::ObjCToNativeVideoDecoderFactory([[RTC_OBJC_TYPE(
                                             RTCVideoDecoderFactoryH264) alloc] init])
-                      audioDeviceModule:[self audioDeviceModule:false].get()
+                      audioDeviceModule:nullptr
                   audioProcessingModule:nullptr
                   bypassVoiceProcessing:NO
                 ];
