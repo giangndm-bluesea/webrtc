@@ -123,7 +123,7 @@ void VideoRtpReceiver::OnChanged() {
     cached_track_should_receive_ = track_->should_receive();
     worker_thread_->BlockingCall([&] {
         RTC_DCHECK_RUN_ON(worker_thread_);
-        if(receive) {
+        if(cached_track_should_receive_) {
           StartMediaChannel();
         } else {
           StopMediaChannel();
