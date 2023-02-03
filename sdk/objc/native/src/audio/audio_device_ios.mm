@@ -180,7 +180,7 @@ int32_t AudioDeviceIOS::InitPlayout() {
   RTC_DCHECK(!audio_is_initialized_);
   RTC_DCHECK(!playing_.load());
   if (!audio_is_initialized_) {
-    if (!InitPlayOrRecord()) {
+    if (!InitPlayOrRecord(false)) {
       RTC_LOG_F(LS_ERROR) << "InitPlayOrRecord failed for InitPlayout!";
       return -1;
     }
@@ -208,7 +208,7 @@ int32_t AudioDeviceIOS::InitRecording() {
   RTC_DCHECK(!audio_is_initialized_);
   RTC_DCHECK(!recording_.load());
   if (!audio_is_initialized_) {
-    if (!InitPlayOrRecord()) {
+    if (!InitPlayOrRecord(true)) {
       RTC_LOG_F(LS_ERROR) << "InitPlayOrRecord failed for InitRecording!";
       return -1;
     }
