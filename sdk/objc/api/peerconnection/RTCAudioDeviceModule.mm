@@ -169,35 +169,35 @@ class AudioDeviceSink : public webrtc::AudioDeviceSink {
 
 - (BOOL)stopPlayout {
 
-  return _workerThread->BlockingCall([&]) {
+  return _workerThread->BlockingCall([&] {
     return _native->StopPlayout() == 0;
   });
 }
 
 - (BOOL)initPlayout {
 
-  return _workerThread->BlockingCall([&]) {
+  return _workerThread->BlockingCall([&] {
     return _native->InitPlayout() == 0;
   });
 }
 
 - (BOOL)startRecording {
 
-  return _workerThread->BlockingCall([&]) {
+  return _workerThread->BlockingCall([&] {
     return _native->StartRecording() == 0;
   });
 }
 
 - (BOOL)stopRecording {
 
-  return _workerThread->BlockingCall([&]) {
+  return _workerThread->BlockingCall([&] {
     return _native->StopRecording() == 0;
   });
 }
 
 - (BOOL)initRecording {
 
-  return _workerThread->BlockingCall([&]) {
+  return _workerThread->BlockingCall([&] {
     return _native->InitRecording() == 0;
   });
 }
