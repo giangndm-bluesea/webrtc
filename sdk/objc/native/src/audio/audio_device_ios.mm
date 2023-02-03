@@ -94,7 +94,6 @@ AudioDeviceIOS::AudioDeviceIOS(bool bypass_voice_processing)
     : bypass_voice_processing_(bypass_voice_processing),
       audio_device_buffer_(nullptr),
       audio_unit_(nullptr),
-      recording_is_initialized_(0),
       recording_(0),
       playing_(0),
       initialized_(false),
@@ -217,7 +216,7 @@ int32_t AudioDeviceIOS::InitRecording() {
     RestartAudioUnit(true);
   }
 
-  rtc::AtomicOps::ReleaseStore(&recording_is_initialized_, 1);
+  audio_is_initialized_ = true;
 
   return 0;
 }
@@ -256,7 +255,7 @@ int32_t AudioDeviceIOS::StopPlayout() {
   if (!recording_.load()) {
     ShutdownPlayOrRecord();
 
-    rtc::AtomicOps::ReleaseStore(&recording_is_initialized_, 0);
+    initialized_ = false;
   }
   playing_.store(0, std::memory_order_release);
 
@@ -592,7 +591,7 @@ void AudioDeviceIOS::HandleSampleRateChange() {
   SetupAudioBuffersForActiveAudioSession();
 
   // Initialize the audio unit again with the new sample rate.
-  if (!audio_unit_->Initialize(playout_parameters_.sample_rate(), recording_is_initialized_)) {
+  if (!audio_unit_->Initialize(playout_parameters_.sample_rate(), recording_.load())) {
     RTCLogError(@"Failed to initialize the audio unit with sample rate: %d",
                 playout_parameters_.sample_rate());
     return;
@@ -779,7 +778,7 @@ void AudioDeviceIOS::UpdateAudioUnit(bool can_play_or_record) {
 
   // If we're not initialized we don't need to do anything. Audio unit will
   // be initialized on initialization.
-  if (!audio_is_initialized_ && !recording_is_initialized_) return;
+  if (!audio_is_initialized_) return;
 
   // If we're initialized, we must have an audio unit.
   RTC_DCHECK(audio_unit_);
@@ -817,7 +816,7 @@ void AudioDeviceIOS::UpdateAudioUnit(bool can_play_or_record) {
     RTCLog(@"Initializing audio unit for UpdateAudioUnit");
     ConfigureAudioSession();
     SetupAudioBuffersForActiveAudioSession();
-    if (!audio_unit_->Initialize(playout_parameters_.sample_rate(), recording_is_initialized_)) {
+    if (!audio_unit_->Initialize(playout_parameters_.sample_rate(), recording_.load())) {
       RTCLogError(@"Failed to initialize audio unit.");
       return;
     }

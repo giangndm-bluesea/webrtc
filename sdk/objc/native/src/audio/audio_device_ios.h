@@ -264,9 +264,6 @@ class AudioDeviceIOS : public AudioDeviceGeneric,
   // will be changed dynamically to account for this behavior.
   rtc::BufferT<int16_t> record_audio_buffer_;
 
-  // Set to 1 when recording is initialized and 0 otherwise.
-  volatile int recording_is_initialized_;
-
   // Set to 1 when recording is active and 0 otherwise.
   std::atomic<int> recording_;
 
