@@ -531,7 +531,7 @@ bool WebRtcVoiceEngine::ApplyOptions(const AudioOptions& options_in) {
     RTC_LOG(LS_INFO) << "NetEq capacity is "
                      << *options.audio_jitter_buffer_max_packets;
     audio_jitter_buffer_max_packets_ =
-        std::max(20, *options.audio_jitter_buffer_max_packets);
+        std::max(3, *options.audio_jitter_buffer_max_packets);
   }
   if (options.audio_jitter_buffer_fast_accelerate) {
     RTC_LOG(LS_INFO) << "NetEq fast mode? "
