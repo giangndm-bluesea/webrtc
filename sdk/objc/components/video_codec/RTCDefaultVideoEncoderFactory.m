@@ -12,6 +12,8 @@
 
 #import "RTCH264ProfileLevelId.h"
 #import "RTCVideoEncoderH264.h"
+#import "RTCH265ProfileLevelId.h"
+#import "RTCVideoEncoderH265.h"
 #import "api/video_codec/RTCVideoCodecConstants.h"
 #import "api/video_codec/RTCVideoEncoderVP8.h"
 #import "api/video_codec/RTCVideoEncoderVP9.h"
@@ -62,6 +64,9 @@
   [result addObject:[[RTC_OBJC_TYPE(RTCVideoCodecInfo) alloc] initWithName:kRTCVideoCodecAv1Name]];
 #endif
 
+  RTCVideoCodecInfo *h265Info = [[RTCVideoCodecInfo alloc] initWithName:kRTCVideoCodecH265Name];
+  [result addObject:h265Info];
+
   return result;
 }
 
@@ -73,6 +78,10 @@
   } else if ([info.name isEqualToString:kRTCVideoCodecVp9Name] &&
              [RTC_OBJC_TYPE(RTCVideoEncoderVP9) isSupported]) {
     return [RTC_OBJC_TYPE(RTCVideoEncoderVP9) vp9Encoder];
+  } else if (@available(iOS 11, *)) {
+    if ([info.name isEqualToString:kRTCVideoCodecH265Name]) {
+      return [[RTCVideoEncoderH265 alloc] initWithCodecInfo:info];
+    }
   }
 
 #if defined(RTC_USE_LIBAOM_AV1_ENCODER)

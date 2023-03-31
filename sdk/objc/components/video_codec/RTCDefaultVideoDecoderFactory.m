@@ -12,6 +12,8 @@
 
 #import "RTCH264ProfileLevelId.h"
 #import "RTCVideoDecoderH264.h"
+#import "RTCH265ProfileLevelId.h"
+#import "RTCVideoDecoderH265.h"
 #import "api/video_codec/RTCVideoCodecConstants.h"
 #import "api/video_codec/RTCVideoDecoderVP8.h"
 #import "api/video_codec/RTCVideoDecoderVP9.h"
@@ -45,10 +47,13 @@
   RTC_OBJC_TYPE(RTCVideoCodecInfo) *vp8Info =
       [[RTC_OBJC_TYPE(RTCVideoCodecInfo) alloc] initWithName:kRTCVideoCodecVp8Name];
 
+  RTCVideoCodecInfo *h265Info = [[RTCVideoCodecInfo alloc] initWithName:kRTCVideoCodecH265Name];
+
   NSMutableArray<RTC_OBJC_TYPE(RTCVideoCodecInfo) *> *result = [@[
     constrainedHighInfo,
     constrainedBaselineInfo,
     vp8Info,
+    h265Info,
   ] mutableCopy];
 
   if ([RTC_OBJC_TYPE(RTCVideoDecoderVP9) isSupported]) {
@@ -59,6 +64,8 @@
 #if defined(RTC_DAV1D_IN_INTERNAL_DECODER_FACTORY)
   [result addObject:[[RTC_OBJC_TYPE(RTCVideoCodecInfo) alloc] initWithName:kRTCVideoCodecAv1Name]];
 #endif
+
+  [result addObject:h265Info];
 
   return result;
 }
@@ -78,6 +85,12 @@
     return [RTC_OBJC_TYPE(RTCVideoDecoderAV1) av1Decoder];
   }
 #endif
+
+  if (@available(iOS 11, *)) {
+    if ([info.name isEqualToString:kRTCVideoCodecH265Name]) {
+      return [[RTCVideoDecoderH265 alloc] init];
+    }
+  }
 
   return nil;
 }

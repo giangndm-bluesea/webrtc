@@ -13,6 +13,7 @@
 #include <utility>
 
 #include "common_video/h264/h264_common.h"
+#include "common_video/h265/h265_common.h"
 #include "modules/video_coding/include/video_codec_interface.h"
 #include "modules/video_coding/include/video_error_codes.h"
 #include "modules/video_coding/svc/scalable_video_controller_no_layering.h"
@@ -350,6 +351,9 @@ int VideoEncoderWrapper::ParseQp(rtc::ArrayView<const uint8_t> buffer) {
       qp = h264_bitstream_parser_.GetLastSliceQp().value_or(-1);
       success = (qp >= 0);
       break;
+    case kVideoCodecH265:
+      success = h265_bitstream_parser_.GetLastSliceQp(&qp);
+      break;  
     default:  // Default is to not provide QP.
       success = false;
       break;
